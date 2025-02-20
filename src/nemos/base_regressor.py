@@ -13,6 +13,7 @@ from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jaxopt
+import optimistix
 from numpy.typing import ArrayLike, NDArray
 
 from . import solvers, utils, validation
@@ -339,6 +340,9 @@ class BaseRegressor(Base, abc.ABC):
             # add self.regularizer_strength to args
             args += (self.regularizer_strength,)
 
+        print("solver_kwargs")
+        print(solver_kwargs)
+
         (
             solver_run_kwargs,
             solver_init_state_kwargs,
@@ -347,26 +351,46 @@ class BaseRegressor(Base, abc.ABC):
         ) = self._inspect_solver_kwargs(solver_kwargs)
 
         # instantiate the solver
-        solver = self._get_solver_class(self.solver_name)(
-            fun=loss, **solver_init_kwargs
-        )
+        solver = self._get_solver_class(self.solver_name)(**solver_init_kwargs)
 
-        self._solver_loss_fun_ = loss
+        def _loss(params, args):
+            return loss(params, *args)
+
+        self._solver_loss_fun_ = _loss
 
         def solver_run(
             init_params: Tuple[DESIGN_INPUT_TYPE, jnp.ndarray], *run_args: jnp.ndarray
-        ) -> jaxopt.OptStep:
-            return solver.run(init_params, *args, *run_args, **solver_run_kwargs)
+        ):
+
+            solution = optimistix.minimise(
+                fn=_loss,
+                solver=solver,
+                y0=init_params,
+                args=run_args,
+                # *run_args,
+                **solver_run_kwargs,
+            )
+            return solution.value, solution.state
 
         def solver_update(params, state, *run_args, **run_kwargs) -> jaxopt.OptStep:
-            return solver.update(
-                params, state, *args, *run_args, **solver_update_kwargs, **run_kwargs
+            return solver.step(
+                _loss,
+                params,
+                state,
+                run_args,
+                **solver_update_kwargs,
+                **run_kwargs,
             )
 
         def solver_init_state(params, *run_args, **run_kwargs) -> NamedTuple:
-            return solver.init_state(
-                params,
-                *run_args,
+            return solver.init(
+                loss,
+                loss(params, *run_args),
+                run_args,
+                options=None,
+                f_struct=None,
+                aux_struct=None,
+                tags=None,
                 **run_kwargs,
                 **solver_init_state_kwargs,
             )
@@ -400,6 +424,10 @@ class BaseRegressor(Base, abc.ABC):
             - solver_update_kwargs: Arguments for the solver's `update` method.
             - solver_init_kwargs: Arguments for the solver's `__init__` constructor.
         """
+
+        def _parameter_list(fun):
+            return list(inspect.signature(fun).parameters.keys())
+
         solver_run_kwargs = dict()
         solver_init_state_kwargs = dict()
         solver_update_kwargs = dict()
@@ -410,13 +438,13 @@ class BaseRegressor(Base, abc.ABC):
             solver = self._get_solver_class(self.solver_name)
 
             for key, value in solver_kwargs.items():
-                if key in inspect.getfullargspec(solver.run).args:
+                if key in _parameter_list(optimistix.minimise):
                     solver_run_kwargs[key] = value
-                if key in inspect.getfullargspec(solver.init_state).args:
+                if key in _parameter_list(solver.init):
                     solver_init_state_kwargs[key] = value
-                if key in inspect.getfullargspec(solver.update).args:
+                if key in _parameter_list(solver.step):
                     solver_update_kwargs[key] = value
-                if key in inspect.getfullargspec(solver.__init__).args:
+                if key in _parameter_list(solver.__init__):
                     solver_init_kwargs[key] = value
 
         return (
@@ -600,7 +628,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_class = getattr(solvers, solver_name)
         except AttributeError:
             try:
-                solver_class = getattr(jaxopt, solver_name)
+                solver_class = getattr(optimistix, solver_name)
             except AttributeError:
                 raise AttributeError(
                     f"Could not find {solver_name} in nemos.solvers or jaxopt"
