@@ -114,6 +114,7 @@ class UnRegularized(Regularizer):
         "ProximalGradient",
         "SVRG",
         "ProxSVRG",
+        "LSGradientDescent",
     )
 
     _default_solver = "GradientDescent"

@@ -351,6 +351,8 @@ class BaseRegressor(Base, abc.ABC):
         ) = self._inspect_solver_kwargs(solver_kwargs)
 
         # instantiate the solver
+        print("solver_init_kwargs")
+        print(solver_init_kwargs)
         solver = self._get_solver_class(self.solver_name)(**solver_init_kwargs)
 
         def _loss(params, args):
@@ -369,6 +371,7 @@ class BaseRegressor(Base, abc.ABC):
                 args=run_args,
                 # *run_args,
                 **solver_run_kwargs,
+                max_steps=10_000,
             )
             return solution.value, solution.state
 
