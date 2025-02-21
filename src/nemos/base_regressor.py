@@ -293,12 +293,14 @@ class BaseRegressor(Base, abc.ABC):
         solver_init_state_args = _parameter_list(solver_class.init)
         solver_run_args = _parameter_list(optx.minimise)
         solver_update_args = _parameter_list(solver_class.step)
+        solver_terminate_args = _parameter_list(solver_class.terminate)
 
         all_solver_args = set.union(
             set(solver_init_state_args),
             set(solver_init_args),
             set(solver_run_args),
             set(solver_update_args),
+            set(solver_terminate_args),
         )
 
         all_solver_args.remove("self")
@@ -377,17 +379,50 @@ class BaseRegressor(Base, abc.ABC):
             # add self.regularizer_strength to args
             args += (self.regularizer_strength,)
 
+        # set defaults
+        # alternative syntax could be solver_kwargs.setdefault("options", {})
+        # proximal operator might go into the options -- but the optimistix devs will tell us about that
+        # I assume options should be the same across methods of the solver
+        if "options" not in solver_kwargs:
+            solver_kwargs["options"] = {}
+
+        # "The shape+dtype of the output of `fn`"
+        # TODO We might want this to be jnp.float64 or decide based on if 64bit operations are set
+        if "f_struct" not in solver_kwargs:
+            solver_kwargs["f_struct"] = jax.ShapeDtypeStruct((), jnp.float32)
+
+        # I guess this would be the output shape + dtype of the aux variables fn returns
+        # in our case the loss doesn't return anything else
+        if "aux_struct" not in solver_kwargs:
+            solver_kwargs["aux_struct"] = None
+
+        # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy.
+        # (In this case it's just a 1x1 matrix, so these don't matter.)"
+        if "tags" not in solver_kwargs:
+            solver_kwargs["tags"] = frozenset()
+
+        # the default number of steps is 256,
+        # if not explicitly given, increase the default
+        if "max_steps" not in solver_kwargs:
+            solver_kwargs["max_steps"] = 100_000
+
+        # 'throw' sets if the minimisation throws an error if an iterative solver runs out of steps
+        # TODO decide on a default
+        if "throw" not in solver_kwargs:
+            solver_kwargs["throw"] = False
+
         (
             solver_run_kwargs,
             solver_init_state_kwargs,
             solver_update_kwargs,
             solver_init_kwargs,
+            solver_terminate_kwargs,
         ) = self._inspect_solver_kwargs(solver_kwargs)
 
         # instantiate the solver
         solver = self._get_solver_class(self.solver_name)(**solver_init_kwargs)
 
-        # optimistix functions take data (=args) as a tuple, but nemos separates them to X, y
+        # optimistix functions take data (called args) as a tuple, but nemos separates them to X, y
         # NOTE we might want to rethink where this unpacking happens
         def _loss(params, args):
             return loss(params, *args)
@@ -398,37 +433,12 @@ class BaseRegressor(Base, abc.ABC):
 
         self._solver_loss_fun_ = _loss
 
-        # TODO figure out what these are and group them nicely
-        # proximal operator might go into the options -- but the optimistix devs will tell us about that
-        # I assume options should be the same across methods of the solver
-        solver_options = solver_kwargs.get("options", {})
-
-        # "The shape+dtype of the output of `fn`"
-        f_struct = jax.ShapeDtypeStruct((), jnp.float32)
-        # TODO We might want this to be jnp.float64 or decide based on if 64bit operations are set
-
-        # I guess this would be the output shape + dtype of the aux variables fn returns
-        # in our case the loss doesn't return anything else
-        aux_struct = None
-
-        # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy.
-        # (In this case it's just a 1x1 matrix, so these don't matter.)"
-        tags = frozenset()
-
-        # the default number of steps is 256,
-        # if not explicitly given, increase the default
-        if "max_steps" not in solver_run_kwargs:
-            solver_run_kwargs["max_steps"] = 100_000
-
-        # 'throw' sets if the minimisation throws an error if an iterative solver runs out of steps
-        # TODO decide on a default
-        if "throw" not in solver_run_kwargs:
-            solver_run_kwargs["throw"] = False
-
+        # TODO type annotation
         def solver_run(
             init_params: Tuple[DESIGN_INPUT_TYPE, jnp.ndarray], *run_args: jnp.ndarray
         ):
-
+            # for signature of optimistix.minimise look in
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_minimise.py#L40
             solution = optx.minimise(
                 fn=_loss,
                 solver=solver,
@@ -438,89 +448,57 @@ class BaseRegressor(Base, abc.ABC):
             )
             return solution.value, solution.state
 
+        # TODO type annotation
         def solver_update(params, state, *run_args, **run_kwargs):
-            # "A 3-tuple containing the new `y` value in the first element, the next solver
-            # state in the second element, and the aux output of `fn(y, args)` in the third
-            # element.""
-            # "`state`: A pytree representing the state of a solver. The shape of this
-            # pytree is solver-dependent."
-            # B: I think state is an equinox.Module
-
+            # for signature of solver.step look in
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L76
             # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L163
-            # def step(
-            #     self,
-            #     fn: Fn[Y, Scalar, Aux],
-            #     y: Y,
-            #     args: PyTree,
-            #     options: dict[str, Any],
-            #     state: _GradientDescentState,
-            #     tags: frozenset[object],
-            # ) -> tuple[Y, _GradientDescentState, Aux]:
-
-            y, state, aux = solver.step(
-                _loss_with_aux,
-                params,
-                run_args,
-                options=solver_options,
+            new_params, state, aux = solver.step(
+                fn=_loss_with_aux,
+                y=params,
+                args=run_args,
                 state=state,
-                tags=tags,
-                # **solver_update_kwargs,
+                **solver_update_kwargs,
             )
 
-            return y, state
+            return new_params, state
 
-        def solver_init_state(params, *run_args, **run_kwargs) -> NamedTuple:
+        # TODO type annotation
+        def solver_init_state(params, *run_args, **run_kwargs):
+            # for signature of solver.init look in
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L36
             # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L140
-            # def init(
-            #    self,
-            #    fn: Fn[Y, Scalar, Aux],
-            #    y: Y,
-            #    args: PyTree,
-            #    options: dict[str, Any],
-            #    f_struct: jax.ShapeDtypeStruct,
-            #    aux_struct: PyTree[jax.ShapeDtypeStruct],
-            #    tags: frozenset[object],
-            # ) -> _GradientDescentState:
-
             return solver.init(
-                _loss,
-                params,
-                run_args,
-                options=solver_options,
-                f_struct=f_struct,
-                aux_struct=aux_struct,
-                tags=tags,
-                # **solver_init_state_kwargs,
+                fn=_loss,
+                y=params,
+                args=run_args,
+                **solver_init_state_kwargs,
             )
 
+        # TODO type annotation
         def solver_terminate(params, state, *run_args, **run_kwargs):
-            # def terminate(
-            #     self,
-            #     fn: Fn[Y, Scalar, Aux],
-            #     y: Y,
-            #     args: PyTree,
-            #     options: dict[str, Any],
-            #     state: _GradientDescentState,
-            #     tags: frozenset[object],
-            # ) -> tuple[Bool[Array, ""], RESULTS]:
+            # for signature of solver.terminate look in
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L109
             return solver.terminate(
-                _loss,
-                params,
-                run_args,
-                solver_options,
-                state,
-                tags,
+                fn=_loss,
+                y=params,
+                args=run_args,
+                state=state,
+                **solver_terminate_kwargs,
             )
 
         self._solver_init_state = solver_init_state
         self._solver_update = solver_update
         self._solver_run = solver_run
         self._solver_terminate = solver_terminate
+
         return self
 
     def _inspect_solver_kwargs(
         self, solver_kwargs: dict
-    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    ) -> Tuple[
+        Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]
+    ]:
         """Inspect and categorize the solver keyword arguments.
 
         This method inspects the provided `solver_kwargs` dictionary and categorizes
@@ -547,6 +525,7 @@ class BaseRegressor(Base, abc.ABC):
         solver_init_state_kwargs = dict()
         solver_update_kwargs = dict()
         solver_init_kwargs = dict()
+        solver_terminate_kwargs = dict()
 
         if solver_kwargs:
             # instantiate a solver to then inspect the params of its various functions
@@ -561,12 +540,15 @@ class BaseRegressor(Base, abc.ABC):
                     solver_update_kwargs[key] = value
                 if key in _parameter_list(solver.__init__):
                     solver_init_kwargs[key] = value
+                if key in _parameter_list(solver.terminate):
+                    solver_terminate_kwargs[key] = value
 
         return (
             solver_run_kwargs,
             solver_init_state_kwargs,
             solver_update_kwargs,
             solver_init_kwargs,
+            solver_terminate_kwargs,
         )
 
     @abc.abstractmethod
