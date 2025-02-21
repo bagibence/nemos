@@ -8,12 +8,12 @@ import inspect
 import warnings
 from abc import abstractmethod
 from copy import deepcopy
-from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import jaxopt
-import optimistix
+import optimistix as optx
 from numpy.typing import ArrayLike, NDArray
 
 from . import solvers, utils, validation
@@ -21,6 +21,23 @@ from ._regularizer_builder import AVAILABLE_REGULARIZERS, create_regularizer
 from .base_class import Base
 from .regularizer import Regularizer, UnRegularized
 from .typing import DESIGN_INPUT_TYPE, SolverInit, SolverRun, SolverUpdate
+
+
+# TODO might want to extend the type annotation to equinox.JitWrapper if that's not a callable
+def _parameter_list(fun: Callable) -> list[str]:
+    """
+    List the name of the arguments of a function.
+
+    Parameters
+    ----------
+    fun
+        Function to inspect.
+
+    Returns
+    -------
+    List of argument names
+    """
+    return list(inspect.signature(fun).parameters.keys())
 
 
 class BaseRegressor(Base, abc.ABC):
@@ -140,6 +157,13 @@ class BaseRegressor(Base, abc.ABC):
             the solver has not yet been instantiated.
         """
         return self._solver_run
+
+    @property
+    def solver_terminate(self):  # -> Union[None, SolverTerminate]:
+        """
+        Provides a function for checking whether the solver's optimization process has converged.
+        """
+        return self._solver_terminate
 
     def set_params(self, **params: Any):
         """Manage warnings in case of multiple parameter settings."""
@@ -265,8 +289,21 @@ class BaseRegressor(Base, abc.ABC):
         NameError
             If any of the solver keyword arguments are not valid.
         """
-        solver_args = inspect.getfullargspec(solver_class).args
-        undefined_kwargs = set(solver_kwargs.keys()).difference(solver_args)
+        solver_init_args = _parameter_list(solver_class)
+        solver_init_state_args = _parameter_list(solver_class.init)
+        solver_run_args = _parameter_list(optx.minimise)
+        solver_update_args = _parameter_list(solver_class.step)
+
+        all_solver_args = set.union(
+            set(solver_init_state_args),
+            set(solver_init_args),
+            set(solver_run_args),
+            set(solver_update_args),
+        )
+
+        all_solver_args.remove("self")
+
+        undefined_kwargs = set(solver_kwargs.keys()).difference(all_solver_args)
         if undefined_kwargs:
             raise NameError(
                 f"kwargs {undefined_kwargs} in solver_kwargs not a kwarg for {solver_class.__name__}!"
@@ -340,9 +377,6 @@ class BaseRegressor(Base, abc.ABC):
             # add self.regularizer_strength to args
             args += (self.regularizer_strength,)
 
-        print("solver_kwargs")
-        print(solver_kwargs)
-
         (
             solver_run_kwargs,
             solver_init_state_kwargs,
@@ -351,56 +385,137 @@ class BaseRegressor(Base, abc.ABC):
         ) = self._inspect_solver_kwargs(solver_kwargs)
 
         # instantiate the solver
-        print("solver_init_kwargs")
-        print(solver_init_kwargs)
         solver = self._get_solver_class(self.solver_name)(**solver_init_kwargs)
 
+        # optimistix functions take data (=args) as a tuple, but nemos separates them to X, y
+        # NOTE we might want to rethink where this unpacking happens
         def _loss(params, args):
             return loss(params, *args)
 
+        # solver.step takes function of this form
+        def _loss_with_aux(params, args):
+            return _loss(params, args), None
+
         self._solver_loss_fun_ = _loss
+
+        # TODO figure out what these are and group them nicely
+        # proximal operator might go into the options -- but the optimistix devs will tell us about that
+        # I assume options should be the same across methods of the solver
+        solver_options = solver_kwargs.get("options", {})
+
+        # "The shape+dtype of the output of `fn`"
+        f_struct = jax.ShapeDtypeStruct((), jnp.float32)
+        # TODO We might want this to be jnp.float64 or decide based on if 64bit operations are set
+
+        # I guess this would be the output shape + dtype of the aux variables fn returns
+        # in our case the loss doesn't return anything else
+        aux_struct = None
+
+        # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy.
+        # (In this case it's just a 1x1 matrix, so these don't matter.)"
+        tags = frozenset()
+
+        # the default number of steps is 256,
+        # if not explicitly given, increase the default
+        if "max_steps" not in solver_run_kwargs:
+            solver_run_kwargs["max_steps"] = 100_000
+
+        # 'throw' sets if the minimisation throws an error if an iterative solver runs out of steps
+        # TODO decide on a default
+        if "throw" not in solver_run_kwargs:
+            solver_run_kwargs["throw"] = False
 
         def solver_run(
             init_params: Tuple[DESIGN_INPUT_TYPE, jnp.ndarray], *run_args: jnp.ndarray
         ):
 
-            solution = optimistix.minimise(
+            solution = optx.minimise(
                 fn=_loss,
                 solver=solver,
                 y0=init_params,
                 args=run_args,
-                # *run_args,
                 **solver_run_kwargs,
-                max_steps=10_000,
             )
             return solution.value, solution.state
 
-        def solver_update(params, state, *run_args, **run_kwargs) -> jaxopt.OptStep:
-            return solver.step(
-                _loss,
+        def solver_update(params, state, *run_args, **run_kwargs):
+            # "A 3-tuple containing the new `y` value in the first element, the next solver
+            # state in the second element, and the aux output of `fn(y, args)` in the third
+            # element.""
+            # "`state`: A pytree representing the state of a solver. The shape of this
+            # pytree is solver-dependent."
+            # B: I think state is an equinox.Module
+
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L163
+            # def step(
+            #     self,
+            #     fn: Fn[Y, Scalar, Aux],
+            #     y: Y,
+            #     args: PyTree,
+            #     options: dict[str, Any],
+            #     state: _GradientDescentState,
+            #     tags: frozenset[object],
+            # ) -> tuple[Y, _GradientDescentState, Aux]:
+
+            y, state, aux = solver.step(
+                _loss_with_aux,
                 params,
-                state,
                 run_args,
-                **solver_update_kwargs,
-                **run_kwargs,
+                options=solver_options,
+                state=state,
+                tags=tags,
+                # **solver_update_kwargs,
             )
 
+            return y, state
+
         def solver_init_state(params, *run_args, **run_kwargs) -> NamedTuple:
+            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L140
+            # def init(
+            #    self,
+            #    fn: Fn[Y, Scalar, Aux],
+            #    y: Y,
+            #    args: PyTree,
+            #    options: dict[str, Any],
+            #    f_struct: jax.ShapeDtypeStruct,
+            #    aux_struct: PyTree[jax.ShapeDtypeStruct],
+            #    tags: frozenset[object],
+            # ) -> _GradientDescentState:
+
             return solver.init(
-                loss,
-                loss(params, *run_args),
+                _loss,
+                params,
                 run_args,
-                options=None,
-                f_struct=None,
-                aux_struct=None,
-                tags=None,
-                **run_kwargs,
-                **solver_init_state_kwargs,
+                options=solver_options,
+                f_struct=f_struct,
+                aux_struct=aux_struct,
+                tags=tags,
+                # **solver_init_state_kwargs,
+            )
+
+        def solver_terminate(params, state, *run_args, **run_kwargs):
+            # def terminate(
+            #     self,
+            #     fn: Fn[Y, Scalar, Aux],
+            #     y: Y,
+            #     args: PyTree,
+            #     options: dict[str, Any],
+            #     state: _GradientDescentState,
+            #     tags: frozenset[object],
+            # ) -> tuple[Bool[Array, ""], RESULTS]:
+            return solver.terminate(
+                _loss,
+                params,
+                run_args,
+                solver_options,
+                state,
+                tags,
             )
 
         self._solver_init_state = solver_init_state
         self._solver_update = solver_update
         self._solver_run = solver_run
+        self._solver_terminate = solver_terminate
         return self
 
     def _inspect_solver_kwargs(
@@ -428,9 +543,6 @@ class BaseRegressor(Base, abc.ABC):
             - solver_init_kwargs: Arguments for the solver's `__init__` constructor.
         """
 
-        def _parameter_list(fun):
-            return list(inspect.signature(fun).parameters.keys())
-
         solver_run_kwargs = dict()
         solver_init_state_kwargs = dict()
         solver_update_kwargs = dict()
@@ -441,7 +553,7 @@ class BaseRegressor(Base, abc.ABC):
             solver = self._get_solver_class(self.solver_name)
 
             for key, value in solver_kwargs.items():
-                if key in _parameter_list(optimistix.minimise):
+                if key in _parameter_list(optx.minimise):
                     solver_run_kwargs[key] = value
                 if key in _parameter_list(solver.init):
                     solver_init_state_kwargs[key] = value
@@ -631,7 +743,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_class = getattr(solvers, solver_name)
         except AttributeError:
             try:
-                solver_class = getattr(optimistix, solver_name)
+                solver_class = getattr(optx, solver_name)
             except AttributeError:
                 raise AttributeError(
                     f"Could not find {solver_name} in nemos.solvers or jaxopt"

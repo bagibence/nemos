@@ -1023,8 +1023,9 @@ class GLM(BaseRegressor):
         #  set up the solver init/run/update attrs
         self.instantiate_solver(solver_kwargs=opt_solver_kwargs)
 
-        # opt_state = self.solver_init_state(init_params, data, y)
-        # return opt_state
+        opt_state = self.solver_init_state(init_params, data, y)
+
+        return opt_state
 
     @cast_to_jax
     def update(
