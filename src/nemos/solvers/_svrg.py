@@ -66,7 +66,7 @@ class ProxSVRG:
         Proximal operator associated with the function ``non_smooth``.
         It should be of the form ``prox(params, hyperparams_prox, scale=1.0)``.
         See ``jaxopt.prox`` for examples.
-    maxiter : int
+    max_steps : int
         Maximum number of epochs to run the optimization for.
     key : jax.random.PRNGkey
         jax PRNGKey to start with. Used for sampling random data points.
@@ -108,14 +108,14 @@ class ProxSVRG:
         self,
         fun: Callable,
         prox: Callable,
-        maxiter: int = 10_000,
+        max_steps: int = 10_000,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
         tol: float = 1e-3,
         batch_size: int = 1,
     ):
         self.fun = fun
-        self.maxiter = maxiter
+        self.max_steps = max_steps
         self.key = key
         self.stepsize = stepsize
         self.tol = tol
@@ -353,7 +353,7 @@ class ProxSVRG:
         *args,
     ) -> OptStep:
         """
-        Run a whole optimization until convergence or until `maxiter` epochs are reached.
+        Run a whole optimization until convergence or until `max_steps` epochs are reached.
         Called by `BaseRegressor._solver_run` (e.g. as called by `GLM.fit`) and assumes
         that X and y are the full data set.
 
@@ -400,7 +400,7 @@ class ProxSVRG:
         *args,
     ) -> OptStep:
         """
-        Run a whole optimization until convergence or until `maxiter` epochs are reached.
+        Run a whole optimization until convergence or until `max_steps` epochs are reached.
         Called by `BaseRegressor._solver_run` (e.g. as called by `GLM.fit`) and assumes that
         X and y are the full data set.
         Assumes the state has been initialized, which works a bit differently for SVRG and ProxSVRG.
@@ -466,7 +466,7 @@ class ProxSVRG:
         # at the end of each epoch, check for convergence or reaching the max number of epochs
         def cond_fun(step):
             _, state = step
-            return (state.iter_num <= self.maxiter) & (state.error >= self.tol)
+            return (state.iter_num <= self.max_steps) & (state.error >= self.tol)
 
         # initialize the full gradient at the anchor point
         # the anchor point is init_params at first
@@ -478,7 +478,7 @@ class ProxSVRG:
             cond_fun=cond_fun,
             body_fun=body_fun,
             init_val=OptStep(params=init_params, state=init_state),
-            maxiter=self.maxiter,
+            maxiter=self.max_steps,
             jit=True,
         )
         return OptStep(params=final_params, state=final_state)
@@ -603,7 +603,7 @@ class SVRG(ProxSVRG):
     ----------
     fun: Callable
         smooth function of the form ``fun(x, *args, **kwargs)``.
-    maxiter : int
+    max_steps : int
         Maximum number of epochs to run the optimization for.
     key : jax.random.PRNGkey
         jax PRNGKey to start with. Used for sampling random data points.
@@ -639,7 +639,7 @@ class SVRG(ProxSVRG):
     def __init__(
         self,
         fun: Callable,
-        maxiter: int = 10_000,
+        max_steps: int = 10_000,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
         tol: float = 1e-3,
@@ -648,7 +648,7 @@ class SVRG(ProxSVRG):
         super().__init__(
             fun,
             prox_none,
-            maxiter,
+            max_steps,
             key,
             stepsize,
             tol,
@@ -735,7 +735,7 @@ class SVRG(ProxSVRG):
         *args,
     ) -> OptStep:
         """
-        Run a whole optimization until convergence or until `maxiter` epochs are reached.
+        Run a whole optimization until convergence or until `max_steps` epochs are reached.
         Called by `BaseRegressor._solver_run` (e.g. as called by `GLM.fit`) and assumes that
         X and y are the full data set.
 

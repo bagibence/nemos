@@ -153,7 +153,7 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
 def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver_name, mask, glm_class):
     solver_kwargs = {
         "stepsize": np.abs(np.random.randn()),
-        "maxiter": np.random.randint(1, 100),
+        "max_steps": np.random.randint(1, 100),
     }
 
     # only pass mask if it's not None
@@ -172,7 +172,7 @@ def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver_name, mask, glm_
 
     solver = inspect.getclosurevars(glm._solver_run).nonlocals["solver"]
     assert solver.stepsize == solver_kwargs["stepsize"]
-    assert solver.maxiter == solver_kwargs["maxiter"]
+    assert solver.max_steps == solver_kwargs["max_steps"]
 
 
 @pytest.mark.parametrize(
@@ -309,7 +309,7 @@ def test_svrg_glm_update(
     ],
 )
 @pytest.mark.parametrize(
-    "maxiter",
+    "max_steps",
     [3, 50],
 )
 @pytest.mark.parametrize(
@@ -322,13 +322,13 @@ def test_svrg_glm_fit(
     solver_name,
     mask,
     poissonGLM_model_instantiation,
-    maxiter,
+    max_steps,
 ):
     X, y, model, (w_true, b_true), rate = poissonGLM_model_instantiation
 
     # set tolerance to -1 so that doesn't stop the iteration
     solver_kwargs = {
-        "maxiter": maxiter,
+        "max_steps": max_steps,
         "tol": -1.0,
     }
 
@@ -358,8 +358,8 @@ def test_svrg_glm_fit(
     glm.fit(X, y)
 
     solver = inspect.getclosurevars(glm._solver_run).nonlocals["solver"]
-    assert solver.maxiter == maxiter
-    assert glm.solver_state_.iter_num == maxiter
+    assert solver.max_steps == max_steps
+    assert glm.solver_state_.iter_num == max_steps
 
 
 @pytest.mark.parametrize(
@@ -426,7 +426,7 @@ def test_svrg_update_converges(request, regr_setup, stepsize):
 
     N = y.shape[0]
     batch_size = 1
-    maxiter = 10_000
+    max_steps = 10_000
     tol = 1e-12
     key = jax.random.key(123)
 
@@ -436,7 +436,7 @@ def test_svrg_update_converges(request, regr_setup, stepsize):
     params = jax.tree_util.tree_map(np.zeros_like, analytical_params)
     state = solver.init_state(params, X, y)
 
-    for _ in range(maxiter):
+    for _ in range(max_steps):
         state = state._replace(
             full_grad_at_reference_point=loss_grad(params, X, y),
         )

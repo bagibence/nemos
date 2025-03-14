@@ -1520,7 +1520,7 @@ class TestGLM:
 
         N = y.shape[0]
         batch_size = 1
-        maxiter = 3  # number of epochs
+        max_steps = 3  # number of epochs
         tol = 1e-12
         stepsize = 1e-3
 
@@ -1544,7 +1544,7 @@ class TestGLM:
                 "batch_size": batch_size,
                 "stepsize": stepsize,
                 "tol": tol,
-                "maxiter": maxiter,
+                "max_steps": max_steps,
                 "key": key,
             },
         )
@@ -1555,7 +1555,7 @@ class TestGLM:
                 "batch_size": batch_size,
                 "stepsize": stepsize,
                 "tol": tol,
-                "maxiter": maxiter,
+                "max_steps": max_steps,
                 "key": key,
             },
             regularizer_strength=strength,
@@ -1576,7 +1576,7 @@ class TestGLM:
             X = X.data
 
         iter_num = 0
-        while iter_num < maxiter:
+        while iter_num < max_steps:
             state = state._replace(
                 full_grad_at_reference_point=loss_grad(params, X, y),
             )
