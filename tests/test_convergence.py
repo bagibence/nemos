@@ -120,8 +120,11 @@ def test_lasso_convergence(solver_name):
     model_PG.fit(X, y)
 
     # use the penalized loss function to solve optimization via Nelder-Mead
-    penalized_loss = lambda p, x, y: model_PG.regularizer.penalized_loss(
-        model_PG._predict_and_compute_loss, model_PG.regularizer_strength
+    def _unpenalized_loss(params, xy_args):
+        return model_PG._predict_and_compute_loss(params, *xy_args)
+
+    penalized_loss = lambda p, xy_args: model_PG.regularizer.penalized_loss(
+        _unpenalized_loss, model_PG.regularizer_strength
     )(
         (
             p[1:],
@@ -129,11 +132,10 @@ def test_lasso_convergence(solver_name):
                 1,
             ),
         ),
-        x,
-        y,
+        xy_args,
     )
     res = minimize(
-        penalized_loss, [0] + w, args=(X, y), method="Nelder-Mead", tol=10**-12
+        penalized_loss, [0] + w, args=((X, y),), method="Nelder-Mead", tol=10**-12
     )
 
     # assert weights are the same
@@ -160,15 +162,19 @@ def test_group_lasso_convergence(solver_name):
 
     # instantiate and fit GLM with ProximalGradient
     model_PG = nmo.glm.GLM(
+        solver_name=solver_name,
         regularizer=nmo.regularizer.GroupLasso(mask=mask),
-        solver_kwargs=dict(tol=10**-14, maxiter=10000),
+        solver_kwargs=dict(tol=10**-14, max_steps=10000),
         regularizer_strength=0.2,
     )
     model_PG.fit(X, y)
 
     # use the penalized loss function to solve optimization via Nelder-Mead
-    penalized_loss = lambda p, x, y: model_PG.regularizer.penalized_loss(
-        model_PG._predict_and_compute_loss, model_PG.regularizer_strength
+    def _unpenalized_loss(params, xy_args):
+        return model_PG._predict_and_compute_loss(params, *xy_args)
+
+    penalized_loss = lambda p, xy_args: model_PG.regularizer.penalized_loss(
+        _unpenalized_loss, model_PG.regularizer_strength
     )(
         (
             p[1:],
@@ -176,17 +182,16 @@ def test_group_lasso_convergence(solver_name):
                 1,
             ),
         ),
-        x,
-        y,
+        (X, y),
     )
 
     res = minimize(
         penalized_loss,
         [0] + w,
-        args=(X, y),
+        args=((X, y),),
         method="Nelder-Mead",
         tol=10**-12,
-        options=dict(maxiter=1000),
+        options=dict(max_steps=1000),
     )
 
     # assert weights are the same

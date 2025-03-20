@@ -205,10 +205,10 @@ class ProxSVRG:
         """
         # gradient on batch_{i_k} evaluated at the current parameters
         # gradient of f_{i_k} at x_{k} in the pseudocode of Gower et al. 2020
-        minibatch_grad_at_current_params = self.loss_gradient(params, *args)
+        minibatch_grad_at_current_params = self.loss_gradient(params, args)
         # gradient on batch_{i_k} evaluated at the anchor point
         # gradient of f_{i_k} at x_{k} in the pseudocode of Gower et al. 2020
-        minibatch_grad_at_reference_point = self.loss_gradient(reference_point, *args)
+        minibatch_grad_at_reference_point = self.loss_gradient(reference_point, args)
 
         # SVRG gradient estimate
         gk = jax.tree_util.tree_map(
@@ -440,7 +440,7 @@ class ProxSVRG:
             # evaluate and store the full gradient with the params from the last inner loop
             state = state._replace(
                 full_grad_at_reference_point=self.loss_gradient(
-                    prev_reference_point, *args
+                    prev_reference_point, args
                 )
             )
 
@@ -471,7 +471,7 @@ class ProxSVRG:
         # initialize the full gradient at the anchor point
         # the anchor point is init_params at first
         init_state = init_state._replace(
-            full_grad_at_reference_point=self.loss_gradient(init_params, *args)
+            full_grad_at_reference_point=self.loss_gradient(init_params, args)
         )
 
         final_params, final_state = loop.while_loop(
@@ -590,6 +590,15 @@ class ProxSVRG:
         Scaled update magnitude.
         """
         return tree_l2_norm(tree_sub(x, x_prev)) / stepsize
+
+    # trying to make a common interface with optimistix
+    def init(self, fn, y, args):
+        # y is init_params
+        del fn, args
+        return self.init_state(y)
+
+    def terminate(self):
+        pass
 
 
 class SVRG(ProxSVRG):

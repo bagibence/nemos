@@ -2,13 +2,15 @@ import inspect
 from contextlib import nullcontext as does_not_raise
 
 import jax
-import jaxopt
 import numpy as np
 import pytest
 
 import nemos as nmo
 from nemos.solvers._svrg import SVRG, ProxSVRG, SVRGState
 from nemos.tree_utils import pytree_map_and_reduce, tree_l2_norm, tree_slice, tree_sub
+
+from nemos.proximal_operator import prox_lasso
+from jaxopt.prox import prox_none, prox_ridge
 
 
 @pytest.mark.parametrize(
@@ -24,8 +26,11 @@ def test_svrg_linear_or_ridge_regression(request, regr_setup, stepsize):
     jax.config.update("jax_enable_x64", True)
     X, y, _, params, loss = request.getfixturevalue(regr_setup)
 
+    def _loss(params, args):
+        return loss(params, *args)
+
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
-    svrg_params, state = SVRG(loss, tol=10**-12, stepsize=stepsize).run(
+    svrg_params, state = SVRG(_loss, tol=10**-12, stepsize=stepsize).run(
         param_init, X, y
     )
     assert pytree_map_and_reduce(
@@ -87,7 +92,8 @@ def test_svrg_init_state_key(request, regr_setup):
 )
 @pytest.mark.parametrize(
     "solver_class, prox, prox_lambda",
-    [(SVRG, None, None), (ProxSVRG, jaxopt.prox.prox_ridge, 0.1)],
+    # [(SVRG, None, None), (ProxSVRG, jaxopt.prox.prox_ridge, 0.1)],
+    [(SVRG, None, None), (ProxSVRG, prox_ridge, 0.1)],
 )
 def test_svrg_update_needs_df_xs(request, regr_setup, solver_class, prox, prox_lambda):
     jax.config.update("jax_enable_x64", True)
@@ -280,7 +286,7 @@ def test_svrg_glm_update(
 
     # initialize full gradient at the anchor point
     state = state._replace(
-        full_grad_at_reference_point=loss_gradient(init_params, X, y),
+        full_grad_at_reference_point=loss_gradient(init_params, (X, y)),
     )
 
     params, state = glm.update(init_params, state, X, y)
@@ -326,10 +332,11 @@ def test_svrg_glm_fit(
 ):
     X, y, model, (w_true, b_true), rate = poissonGLM_model_instantiation
 
-    # set tolerance to -1 so that doesn't stop the iteration
+    # set tolerance to 0 so that doesn't stop the iteration
+    # (for jaxopt it used to be -1.)
     solver_kwargs = {
         "max_steps": max_steps,
-        "tol": -1.0,
+        "tol": 0.0,
     }
 
     # only pass mask if it's not None
@@ -358,8 +365,13 @@ def test_svrg_glm_fit(
     glm.fit(X, y)
 
     solver = inspect.getclosurevars(glm._solver_run).nonlocals["solver"]
-    assert solver.max_steps == max_steps
-    assert glm.solver_state_.iter_num == max_steps
+
+    if isinstance(solver, (ProxSVRG, SVRG)):
+        assert solver.max_steps == max_steps
+        assert glm.solver_state_.iter_num == max_steps
+    else:
+        assert solver.stats["max_steps"] == max_steps
+        assert solver.stats["num_steps"] == max_steps
 
 
 @pytest.mark.parametrize(
@@ -422,7 +434,10 @@ def test_svrg_update_converges(request, regr_setup, stepsize):
     jax.config.update("jax_enable_x64", True)
     X, y, _, analytical_params, loss = request.getfixturevalue(regr_setup)
 
-    loss_grad = jax.jit(jax.grad(loss))
+    def _loss(params, args):
+        return loss(params, *args)
+
+    loss_grad = jax.jit(jax.grad(_loss))
 
     N = y.shape[0]
     batch_size = 1
@@ -432,13 +447,13 @@ def test_svrg_update_converges(request, regr_setup, stepsize):
 
     m = int((N + batch_size - 1) // batch_size)
 
-    solver = SVRG(loss, stepsize=stepsize, batch_size=batch_size)
+    solver = SVRG(_loss, stepsize=stepsize, batch_size=batch_size)
     params = jax.tree_util.tree_map(np.zeros_like, analytical_params)
     state = solver.init_state(params, X, y)
 
     for _ in range(max_steps):
         state = state._replace(
-            full_grad_at_reference_point=loss_grad(params, X, y),
+            full_grad_at_reference_point=loss_grad(params, (X, y)),
         )
 
         prev_params = params
@@ -475,14 +490,13 @@ def test_svrg_update_converges(request, regr_setup, stepsize):
 @pytest.mark.parametrize(
     "prox, prox_lambda",
     [
-        (jaxopt.prox.prox_none, None),
-        (jaxopt.prox.prox_ridge, 0.1),
-        (jaxopt.prox.prox_none, 0.1),
-        (nmo.proximal_operator.prox_lasso, 0.1),
+        (prox_none, None),
+        (prox_ridge, 0.1),
+        (prox_none, 0.1),
+        (prox_lasso, 0.1),
     ],
 )
 def test_svrg_xk_update_step(request, regr_setup, to_tuple, prox, prox_lambda):
-
     X, y, true_params, ols_coef, loss_arr = request.getfixturevalue(regr_setup)
 
     # the loss takes an array, but I want to test with tuples as well
@@ -496,14 +510,17 @@ def test_svrg_xk_update_step(request, regr_setup, to_tuple, prox, prox_lambda):
     else:
         loss = loss_arr
 
+    def _loss(params, args):
+        return loss(params, *args)
+
     stepsize = 1e-2
-    loss_gradient = jax.jit(jax.grad(loss))
+    loss_gradient = jax.jit(jax.grad(_loss))
 
     # set the initial parameters to zero and
     # set the anchor point to a random value that's not just zeros
     init_param = jax.tree_util.tree_map(np.zeros_like, true_params)
     xs = jax.tree_util.tree_map(lambda x: np.random.randn(*x.shape), true_params)
-    df_xs = loss_gradient(xs, X, y)
+    df_xs = loss_gradient(xs, (X, y))
 
     # sample a mini-batch
     key = jax.random.key(123)
@@ -511,8 +528,8 @@ def test_svrg_xk_update_step(request, regr_setup, to_tuple, prox, prox_lambda):
     ind = jax.random.randint(subkey, (32,), 0, y.shape[0])
     xi, yi = tree_slice(X, ind), tree_slice(y, ind)
 
-    dfik_xk = loss_gradient(init_param, xi, yi)
-    dfik_xs = loss_gradient(xs, xi, yi)
+    dfik_xk = loss_gradient(init_param, (xi, yi))
+    dfik_xs = loss_gradient(xs, (xi, yi))
 
     # update if inputs are arrays
     def _array_update(dfik_xk, dfik_xs, df_xs, init_param, stepsize):
@@ -561,10 +578,10 @@ def test_svrg_xk_update_step(request, regr_setup, to_tuple, prox, prox_lambda):
     next_xk = prox(next_xk, prox_lambda, scaling=stepsize)
 
     if prox_lambda is None:
-        assert prox == jaxopt.prox.prox_none
-        solver = SVRG(loss)
+        assert prox == prox_none
+        solver = SVRG(_loss)
     else:
-        solver = ProxSVRG(loss, prox)
+        solver = ProxSVRG(_loss, prox)
     svrg_next_xk = solver._inner_loop_param_update_step(
         init_param, xs, df_xs, stepsize, prox_lambda, xi, yi
     )
@@ -599,9 +616,9 @@ def test_svrg_wrong_shapes(shapes, expected_context):
 
     init_params = np.random.randn(3, 1)
 
-    def loss_fn(params, X, y):
+    def loss_fn(params, args):
         return 1.0
 
     with expected_context:
         svrg = SVRG(loss_fn)
-        svrg.run(init_params, X, y)
+        svrg.run(init_params, (X, y))

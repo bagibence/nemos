@@ -81,9 +81,7 @@ class Regularizer(Base, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_proximal_operator(
-        self,
-    ) -> ProximalOperator:
+    def get_proximal_operator(self) -> ProximalOperator:
         """
         Abstract method to retrieve the proximal operator for this solver.
 
@@ -204,8 +202,10 @@ class Ridge(Regularizer):
     def penalized_loss(self, loss: Callable, regularizer_strength: float) -> Callable:
         """Returns the penalized loss function for Ridge regularization."""
 
-        def _penalized_loss(params, X, y):
-            return loss(params, X, y) + self._penalization(params, regularizer_strength)
+        def _penalized_loss(params, xy_args):
+            return loss(params, xy_args) + self._penalization(
+                params, regularizer_strength
+            )
 
         return _penalized_loss
 
@@ -302,8 +302,10 @@ class Lasso(Regularizer):
     def penalized_loss(self, loss: Callable, regularizer_strength: float) -> Callable:
         """Returns a function for calculating the penalized loss using Lasso regularization."""
 
-        def _penalized_loss(params, X, y):
-            return loss(params, X, y) + self._penalization(params, regularizer_strength)
+        def _penalized_loss(params, xy_args):
+            return loss(params, xy_args) + self._penalization(
+                params, regularizer_strength
+            )
 
         return _penalized_loss
 
@@ -461,8 +463,10 @@ class GroupLasso(Regularizer):
     def penalized_loss(self, loss: Callable, regularizer_strength: float) -> Callable:
         """Returns a function for calculating the penalized loss using Group Lasso regularization."""
 
-        def _penalized_loss(params, X, y):
-            return loss(params, X, y) + self._penalization(params, regularizer_strength)
+        def _penalized_loss(params, xy_args):
+            return loss(params, xy_args) + self._penalization(
+                params, regularizer_strength
+            )
 
         return _penalized_loss
 

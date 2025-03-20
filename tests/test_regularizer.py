@@ -8,6 +8,7 @@ import pytest
 import statsmodels.api as sm
 from sklearn.linear_model import GammaRegressor, PoissonRegressor
 from statsmodels.tools.sm_exceptions import DomainWarning
+import equinox as eqx
 
 import nemos as nmo
 
@@ -107,7 +108,6 @@ def test_regularizer_setter(regularizer_strength, regularizer):
             match=f"Could not convert the regularizer strength: {regularizer_strength} "
             f"to a float.",
         ):
-
             nmo.glm.GLM(
                 regularizer=regularizer, regularizer_strength=regularizer_strength
             )
@@ -1154,12 +1154,17 @@ class TestGroupLasso:
         state = model.solver_init_state(true_params, X, y)
         # asses that state is a NamedTuple by checking tuple type and the availability of some NamedTuple
         # specific namespace attributes
-        assert isinstance(state, tuple)
-        assert (
-            hasattr(state, "_fields")
-            and hasattr(state, "_field_defaults")
-            and hasattr(state, "_asdict")
-        )
+        # alternatively it's a solver state from Optimistix, so make sure it's an instance of some class
+        # whose name ends with State
+        assert isinstance(state, (tuple, eqx.Module))
+        if isinstance(state, tuple):
+            assert (
+                hasattr(state, "_fields")
+                and hasattr(state, "_field_defaults")
+                and hasattr(state, "_asdict")
+            )
+        elif isinstance(state, eqx.Module):
+            assert state.__class__.__name__.endswith("State")
 
     @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
     def test_update_solver(self, solver_name, poissonGLM_model_instantiation):
@@ -1188,12 +1193,18 @@ class TestGroupLasso:
         params, state = model.solver_update(true_params, state, X, y)
         # asses that state is a NamedTuple by checking tuple type and the availability of some NamedTuple
         # specific namespace attributes
-        assert isinstance(state, tuple)
-        assert (
-            hasattr(state, "_fields")
-            and hasattr(state, "_field_defaults")
-            and hasattr(state, "_asdict")
-        )
+        # alternatively it's a solver state from Optimistix, so make sure it's an instance of some class
+        # whose name ends with State
+        assert isinstance(state, (tuple, eqx.Module))
+        if isinstance(state, tuple):
+            assert (
+                hasattr(state, "_fields")
+                and hasattr(state, "_field_defaults")
+                and hasattr(state, "_asdict")
+            )
+        elif isinstance(state, eqx.Module):
+            assert state.__class__.__name__.endswith("State")
+
         # check params struct and shapes
         assert jax.tree_util.tree_structure(params) == jax.tree_util.tree_structure(
             true_params

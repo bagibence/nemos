@@ -1578,7 +1578,7 @@ class TestGLM:
         iter_num = 0
         while iter_num < max_steps:
             state = state._replace(
-                full_grad_at_reference_point=loss_grad(params, X, y),
+                full_grad_at_reference_point=loss_grad(params, (X, y)),
             )
 
             prev_params = params

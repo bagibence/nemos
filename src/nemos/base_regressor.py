@@ -19,7 +19,7 @@ from numpy.typing import ArrayLike, NDArray
 from . import solvers, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, create_regularizer
 from .base_class import Base
-from .regularizer import Regularizer, UnRegularized
+from .regularizer import Regularizer, UnRegularized, GroupLasso
 from .typing import DESIGN_INPUT_TYPE, SolverInit, SolverRun, SolverUpdate
 
 
@@ -87,7 +87,7 @@ class BaseRegressor(Base, abc.ABC):
         self,
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[float] = None,
-        solver_name: str = None,
+        solver_name: Optional[str] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = regularizer
@@ -101,6 +101,7 @@ class BaseRegressor(Base, abc.ABC):
 
         if solver_kwargs is None:
             solver_kwargs = dict()
+
         self.solver_kwargs = solver_kwargs
         self._solver_init_state = None
         self._solver_update = None
@@ -273,6 +274,56 @@ class BaseRegressor(Base, abc.ABC):
         self._solver_kwargs = solver_kwargs
 
     @staticmethod
+    def _get_all_solver_args(solver_class) -> set[str]:
+        """
+        Set of all arguments that can be passed to the methods of the solver.
+        """
+        # solver_init_args = _parameter_list(solver_class)
+        solver_init_args = _parameter_list(solver_class.__init__)
+        solver_terminate_args = _parameter_list(solver_class.terminate)
+        solver_init_state_args = _parameter_list(solver_class.init)
+        solver_run_args = _parameter_list(solver_class.run)
+        solver_update_args = _parameter_list(solver_class.update)
+
+        all_solver_args = set.union(
+            set(solver_init_state_args),
+            set(solver_init_args),
+            set(solver_run_args),
+            set(solver_update_args),
+            set(solver_terminate_args),
+        )
+
+        all_solver_args.remove("self")
+
+        return all_solver_args
+
+    @staticmethod
+    def _handle_tolerances(solver_kwargs, all_solver_args):
+        default_atol = 1e-8
+        # default_rtol = 1e-3
+        default_rtol = 0.0
+
+        if "tol" in solver_kwargs and "tol" not in all_solver_args:
+            atol = solver_kwargs.pop("tol")
+        else:
+            atol = default_atol
+
+        if "tol" not in solver_kwargs and "tol" in all_solver_args:
+            if "atol" in solver_kwargs:
+                solver_kwargs["tol"] = solver_kwargs.pop("atol")
+
+        if "atol" not in solver_kwargs and "atol" in all_solver_args:
+            solver_kwargs["atol"] = atol
+
+        if "rtol" not in solver_kwargs and "rtol" in all_solver_args:
+            solver_kwargs["rtol"] = default_rtol
+
+        if "rtol" in solver_kwargs and "rtol" not in all_solver_args:
+            del solver_kwargs["rtol"]
+
+        return solver_kwargs
+
+    @staticmethod
     def _check_solver_kwargs(solver_class, solver_kwargs):
         """
         Check if provided solver keyword arguments are valid.
@@ -289,21 +340,9 @@ class BaseRegressor(Base, abc.ABC):
         NameError
             If any of the solver keyword arguments are not valid.
         """
-        solver_init_args = _parameter_list(solver_class)
-        solver_init_state_args = _parameter_list(solver_class.init)
-        solver_run_args = _parameter_list(optx.minimise)
-        solver_update_args = _parameter_list(solver_class.step)
-        solver_terminate_args = _parameter_list(solver_class.terminate)
+        all_solver_args = BaseRegressor._get_all_solver_args(solver_class)
 
-        all_solver_args = set.union(
-            set(solver_init_state_args),
-            set(solver_init_args),
-            set(solver_run_args),
-            set(solver_update_args),
-            set(solver_terminate_args),
-        )
-
-        all_solver_args.remove("self")
+        solver_kwargs = BaseRegressor._handle_tolerances(solver_kwargs, all_solver_args)
 
         undefined_kwargs = set(solver_kwargs.keys()).difference(all_solver_args)
         if undefined_kwargs:
@@ -349,15 +388,20 @@ class BaseRegressor(Base, abc.ABC):
                 f"{self._regularizer.allowed_solvers}."
             )
 
+        solver_class = self._get_solver_class(self.solver_name)
+
         # only use penalized loss if not using proximal gradient descent
         # In proximal method you must use the unpenalized loss independently
         # of what regularizer you are using.
+        def _unpenalized_loss(params, xy_args):
+            return self._predict_and_compute_loss(params, *xy_args)
+
         if self.solver_name not in ("ProximalGradient", "ProxSVRG"):
             loss = self.regularizer.penalized_loss(
-                self._predict_and_compute_loss, self.regularizer_strength
+                _unpenalized_loss, self.regularizer_strength
             )
         else:
-            loss = self._predict_and_compute_loss
+            loss = _unpenalized_loss
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
@@ -375,14 +419,22 @@ class BaseRegressor(Base, abc.ABC):
                     "Please remove the 'prox' argument from the `solver_kwargs` "
                 )
 
+            # TODO How about moving regularization strength into the regularizer?
+            # and passing it to _create_regularizer
+            # which would check if the regularizer takes a regularizer_strength or not
+            # so raise an error if Ridge and Lasso don't get one, or if UnRegularized gets one
+            # Then self.regularizer.get_proximal_operator() would create it and this check would not be needed
             solver_kwargs.update(prox=self.regularizer.get_proximal_operator())
             # add self.regularizer_strength to args
             args += (self.regularizer_strength,)
 
+        # TODO Now that I have an explicit interface for each solver in solvers._optimistix_solvers
+        # I could define those arguments explicitly with a default, and then this is not needed
+
         # set defaults
         # alternative syntax could be solver_kwargs.setdefault("options", {})
-        # proximal operator might go into the options -- but the optimistix devs will tell us about that
         # I assume options should be the same across methods of the solver
+        # might want to put regularizer_strength in here
         if "options" not in solver_kwargs:
             solver_kwargs["options"] = {}
 
@@ -411,6 +463,13 @@ class BaseRegressor(Base, abc.ABC):
         if "throw" not in solver_kwargs:
             solver_kwargs["throw"] = False
 
+        # if "norm" not in solver_kwargs:
+        #    solver_kwargs["norm"] = optx.two_norm
+
+        solver_kwargs = BaseRegressor._handle_tolerances(
+            solver_kwargs, self._get_all_solver_args(solver_class)
+        )
+
         (
             solver_run_kwargs,
             solver_init_state_kwargs,
@@ -419,60 +478,40 @@ class BaseRegressor(Base, abc.ABC):
             solver_terminate_kwargs,
         ) = self._inspect_solver_kwargs(solver_kwargs)
 
-        # instantiate the solver
-        solver = self._get_solver_class(self.solver_name)(**solver_init_kwargs)
-
         # optimistix functions take data (called args) as a tuple, but nemos separates them to X, y
-        # NOTE we might want to rethink where this unpacking happens
-        def _loss(params, args):
-            return loss(params, *args)
-
+        # I adapted SVRG to behave the same
+        # TODO it might have to be done the other way, keeping the SVRG interface
         # solver.step takes function of this form
-        def _loss_with_aux(params, args):
-            return _loss(params, args), None
+        def _loss_with_aux(params, xy_args):
+            return loss(params, xy_args), None
 
-        self._solver_loss_fun_ = _loss
+        self._solver_loss_fun_ = loss
+
+        # instantiate the solver
+        solver = solver_class(fun=loss, **solver_init_kwargs)
 
         # TODO type annotation
         def solver_run(
             init_params: Tuple[DESIGN_INPUT_TYPE, jnp.ndarray], *run_args: jnp.ndarray
         ):
-            # for signature of optimistix.minimise look in
-            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_minimise.py#L40
-            solution = optx.minimise(
-                fn=_loss,
-                solver=solver,
-                y0=init_params,
-                args=run_args,
-                **solver_run_kwargs,
-            )
-            return solution.value, solution.state
+            return solver.run(init_params, *args, *run_args, **solver_run_kwargs)
 
         # TODO type annotation
         def solver_update(params, state, *run_args, **run_kwargs):
-            # for signature of solver.step look in
-            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L76
-            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L163
-            new_params, state, aux = solver.step(
-                fn=_loss_with_aux,
-                y=params,
-                args=run_args,
-                state=state,
+            return solver.update(
+                params,
+                state,
+                *args,
+                *run_args,
                 **solver_update_kwargs,
+                **run_kwargs,
             )
-
-            return new_params, state
 
         # TODO type annotation
         def solver_init_state(params, *run_args, **run_kwargs):
-            # for signature of solver.init look in
-            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L36
-            # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_solver/gradient_methods.py#L140
+            # NOTE I added a .init to SVRG which mimics the .init of optimistix solvers
             return solver.init(
-                fn=_loss,
-                y=params,
-                args=run_args,
-                **solver_init_state_kwargs,
+                fn=loss, y=params, args=run_args, **solver_init_state_kwargs
             )
 
         # TODO type annotation
@@ -480,7 +519,7 @@ class BaseRegressor(Base, abc.ABC):
             # for signature of solver.terminate look in
             # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L109
             return solver.terminate(
-                fn=_loss,
+                fn=loss,
                 y=params,
                 args=run_args,
                 state=state,
@@ -532,11 +571,11 @@ class BaseRegressor(Base, abc.ABC):
             solver = self._get_solver_class(self.solver_name)
 
             for key, value in solver_kwargs.items():
-                if key in _parameter_list(optx.minimise):
+                if key in _parameter_list(solver.run):
                     solver_run_kwargs[key] = value
                 if key in _parameter_list(solver.init):
                     solver_init_state_kwargs[key] = value
-                if key in _parameter_list(solver.step):
+                if key in _parameter_list(solver.update):
                     solver_update_kwargs[key] = value
                 if key in _parameter_list(solver.__init__):
                     solver_init_kwargs[key] = value
@@ -704,7 +743,7 @@ class BaseRegressor(Base, abc.ABC):
     @staticmethod
     def _get_solver_class(solver_name: str):
         """
-        Find a solver class first looking in nemos.solvers, then in jaxopt.
+        Find a solver class first looking in nemos.solvers, then in Optimistix.
 
         Parameters
         ----------
@@ -728,7 +767,7 @@ class BaseRegressor(Base, abc.ABC):
                 solver_class = getattr(optx, solver_name)
             except AttributeError:
                 raise AttributeError(
-                    f"Could not find {solver_name} in nemos.solvers or jaxopt"
+                    f"Could not find {solver_name} in nemos.solvers or Optimistix"
                 )
 
         return solver_class
