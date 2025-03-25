@@ -138,7 +138,6 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         )
         new_y = eqx.apply_updates(y, updates)
 
-        # new_y = self.prox(new_y, self.get_learning_rate(new_state))
         new_y = self.prox(
             new_y,
             options["regularizer_strength"],
