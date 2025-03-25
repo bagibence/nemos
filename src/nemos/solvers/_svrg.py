@@ -9,8 +9,16 @@ from jaxopt import OptStep
 from jaxopt._src import loop
 from jaxopt.prox import prox_none
 
-from ..tree_utils import tree_add_scalar_mul, tree_l2_norm, tree_slice, tree_sub
+from ..tree_utils import (
+    tree_add_scalar_mul,
+    tree_l2_norm,
+    tree_slice,
+    tree_sub,
+    tree_scalar_mul,
+)
 from ..typing import KeyArrayLike, Pytree
+
+from optimistix import max_norm, two_norm
 
 
 class SVRGState(NamedTuple):
@@ -47,6 +55,8 @@ class SVRGState(NamedTuple):
     stepsize: float
     reference_point: Optional[Pytree] = None
     full_grad_at_reference_point: Optional[Pytree] = None
+    y_converged: bool = False
+    f_converged: bool = False
 
 
 class ProxSVRG:
@@ -159,6 +169,8 @@ class ProxSVRG:
             stepsize=self.stepsize,
             reference_point=init_params,
             full_grad_at_reference_point=None,
+            y_converged=False,
+            f_converged=False,
         )
         return state
 
@@ -454,11 +466,26 @@ class ProxSVRG:
             # note that the average is currently not implemented
             reference_point = params
 
+            y_converged, f_converged = self.cauchy_termination(
+                # self.rtol,
+                # self.atol,
+                # 0.0,
+                # self.tol,
+                0.0,
+                self.tol * state.stepsize,
+                reference_point,
+                prev_reference_point,
+                self.fun(reference_point, args),
+                self.fun(prev_reference_point, args),
+            )
+
             state = state._replace(
                 reference_point=reference_point,
                 error=self._error(
                     reference_point, prev_reference_point, state.stepsize
                 ),
+                y_converged=y_converged,
+                f_converged=f_converged,
             )
 
             return OptStep(params=reference_point, state=state)
@@ -466,7 +493,12 @@ class ProxSVRG:
         # at the end of each epoch, check for convergence or reaching the max number of epochs
         def cond_fun(step):
             _, state = step
-            return (state.iter_num <= self.max_steps) & (state.error >= self.tol)
+            # return (state.iter_num <= self.max_steps) & (state.error >= self.tol)
+            return (
+                (state.iter_num <= self.max_steps)
+                & ~state.y_converged
+                & ~state.f_converged
+            )
 
         # initialize the full gradient at the anchor point
         # the anchor point is init_params at first
@@ -590,6 +622,37 @@ class ProxSVRG:
         Scaled update magnitude.
         """
         return tree_l2_norm(tree_sub(x, x_prev)) / stepsize
+
+    @staticmethod
+    def cauchy_termination(
+        rtol: float,
+        atol: float,
+        y,
+        y_prev,
+        f,
+        f_prev,
+        norm: Callable = two_norm,
+    ):
+        y_scale = jax.tree.map(
+            lambda x: atol + x,
+            tree_scalar_mul(rtol, jax.tree.map(jnp.abs, y)),
+        )
+        f_scale = jax.tree.map(
+            lambda x: atol + x,
+            tree_scalar_mul(rtol, jax.tree.map(jnp.abs, f)),
+        )
+        # f_scale = atol + rtol * jnp.abs(f)
+
+        y_diff = jax.tree.map(jnp.abs, tree_sub(y, y_prev))
+        f_diff = jax.tree.map(jnp.abs, tree_sub(f, f_prev))
+        # f_diff = jnp.abs(f - f_prev)
+
+        y_converged = norm(jax.tree.map(lambda a, b: a / b, y_diff, y_scale)) < 1
+        f_converged = norm(jax.tree.map(lambda a, b: a / b, f_diff, f_scale)) < 1
+        # f_converged = norm(f_diff / f_scale) < 1
+
+        # return y_converged & f_converged
+        return y_converged, f_converged
 
     # trying to make a common interface with optimistix
     def init(self, fn, y, args):
