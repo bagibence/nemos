@@ -191,7 +191,7 @@ def test_group_lasso_convergence(solver_name):
         args=((X, y),),
         method="Nelder-Mead",
         tol=10**-12,
-        options=dict(max_steps=1000),
+        options=dict(maxiter=1000),
     )
 
     # assert weights are the same
