@@ -198,8 +198,11 @@ class GradientDescent(optx.AbstractGradientDescent, OptimistixSolverMixin):
         else:
             if linesearch_kwargs is None:
                 linesearch_kwargs = {}
+            # copy default behavior from Optax
             if "decrease_factor" not in linesearch_kwargs:
                 linesearch_kwargs["decrease_factor"] = 0.8
+            if "slope" not in linesearch_kwargs:
+                linesearch_kwargs["slope"] = 1e-4
             self._stepsize = None
             self.search = optx.BacktrackingArmijo(**linesearch_kwargs)
 
