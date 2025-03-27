@@ -222,12 +222,12 @@ class Ridge(Regularizer):
             term is not regularized.
         """
 
-        def prox_op(params, l2reg, scaling=1.0):
+        def prox_ridge(params, l2reg, scaling=1.0):
             Ws, bs = params
             l2reg /= bs.shape[0]
             return jaxopt.prox.prox_ridge(Ws, l2reg, scaling=scaling), bs
 
-        return prox_op
+        return prox_ridge
 
 
 class Lasso(Regularizer):
@@ -263,7 +263,7 @@ class Lasso(Regularizer):
             term is not regularized.
         """
 
-        def prox_op(params, l1reg, scaling=1.0):
+        def prox_lasso(params, l1reg, scaling=1.0):
             Ws, bs = params
             l1reg /= bs.shape[0]
             # if Ws is a pytree, l1reg needs to be a pytree with the same
@@ -271,7 +271,7 @@ class Lasso(Regularizer):
             l1reg = jax.tree_util.tree_map(lambda x: l1reg * jnp.ones_like(x), Ws)
             return jaxopt.prox.prox_lasso(Ws, l1reg, scaling=scaling), bs
 
-        return prox_op
+        return prox_lasso
 
     @staticmethod
     def _penalization(

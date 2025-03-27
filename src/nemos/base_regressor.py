@@ -464,6 +464,10 @@ class BaseRegressor(Base, abc.ABC):
         # if "norm" not in solver_kwargs:
         #    solver_kwargs["norm"] = optx.two_norm
 
+        # NOTE this is here for the Optax-based solver that needs this upon initialization
+        if "regularizer_strength" in self._get_all_solver_args(solver_class):
+            solver_kwargs["regularizer_strength"] = self.regularizer_strength
+
         solver_kwargs = BaseRegressor._handle_tolerances(
             solver_kwargs, self._get_all_solver_args(solver_class)
         )

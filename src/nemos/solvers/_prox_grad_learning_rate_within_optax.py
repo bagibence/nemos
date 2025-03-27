@@ -2,6 +2,16 @@ import optax
 from optax.tree_utils import tree_add, tree_sub
 import optax._src.base as optax_base
 
+import optimistix as optx
+import jax.numpy as jnp
+import jax
+
+from ._optimistix_solvers import OptimistixSolverMixin
+from typing import Callable, Optional, Any
+from jaxtyping import PyTree, Scalar
+
+from ._prox_grad_learning_rate_from_optax import ScaleByLearningRateState
+
 
 def prox_lasso(regularizer_strength: float):
     def _prox_lasso(regularizer_strength: float, scaling):
@@ -89,6 +99,25 @@ def prox_ridge(regularizer_strength: float):
     return _prox_ridge(regularizer_strength, None)
 
 
+def prox_none(regularizer_strength: float):
+    def _prox_none(regularizer_strength, scaling):
+        del regularizer_strength, scaling
+
+        def init_fn(params):
+            del params
+            return optax.EmptyState()
+
+        def update_fn(updates, state, params, *, scaling):
+            if params is None:
+                raise ValueError(optax_base.NO_PARAMS_MSG)
+
+            return updates, state
+
+        return optax.GradientTransformation(init_fn, update_fn)
+
+    return _prox_none(regularizer_strength, None)
+
+
 def prox_chain(
     *args: optax.GradientTransformation,
 ) -> optax.GradientTransformationExtraArgs:
@@ -154,6 +183,7 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         norm: Callable[[PyTree], Scalar] = optx.max_norm,
         verbose: frozenset[str] = frozenset(),
         linesearch_kwargs: Optional[dict] = None,
+        regularizer_strength: Optional[float] = None,
     ):
         self.fun = fun
         self.fun_with_aux = lambda params, args: (fun(params, args), None)
@@ -161,14 +191,16 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         self.stats = {}
 
         if prox.__name__ == "prox_lasso":
-            prox = prox_lasso
+            prox_transform = prox_lasso
         elif prox.__name__ == "prox_ridge":
-            prox = prox_ridge
+            prox_transform = prox_ridge
+        elif prox.__name__ == "prox_none" or prox is None:
+            prox_transform = prox_none
 
         _optax_proxgrad = prox_chain(
             optax.sgd(1.0, nesterov=True),
             self._make_rate_scaler(stepsize, linesearch_kwargs),
-            prox,
+            prox_transform(regularizer_strength),
         )
 
         super().__init__(
