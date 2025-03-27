@@ -9,6 +9,9 @@ import jax
 import equinox as eqx
 from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
+DEFAULT_ATOL = 1e-8
+DEFAULT_RTOL = 0.0
+
 
 class OptimistixSolverMixin:
     def run(

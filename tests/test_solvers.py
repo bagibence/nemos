@@ -30,7 +30,7 @@ def test_svrg_linear_or_ridge_regression(request, regr_setup, stepsize):
         return loss(params, *args)
 
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
-    svrg_params, state = SVRG(_loss, tol=10**-12, stepsize=stepsize).run(
+    svrg_params, state = SVRG(_loss, atol=10**-12, stepsize=stepsize).run(
         param_init, X, y
     )
     assert pytree_map_and_reduce(

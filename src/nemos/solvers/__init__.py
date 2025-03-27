@@ -17,3 +17,7 @@ from ._optax_based_solvers import (
 # from ._optimistix_prox_grad import ProximalGradient
 
 from ._prox_grad_learning_rate_from_optax import ProximalGradient
+from ._optimistix_solvers import (
+    DEFAULT_ATOL,
+    DEFAULT_RTOL,
+)

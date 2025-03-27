@@ -22,6 +22,8 @@ from .base_class import Base
 from .regularizer import Regularizer, UnRegularized, GroupLasso
 from .typing import DESIGN_INPUT_TYPE, SolverInit, SolverRun, SolverUpdate
 
+from .solvers import DEFAULT_ATOL, DEFAULT_RTOL
+
 
 # TODO might want to extend the type annotation to equinox.JitWrapper if that's not a callable
 def _parameter_list(fun: Callable) -> list[str]:
@@ -299,14 +301,10 @@ class BaseRegressor(Base, abc.ABC):
 
     @staticmethod
     def _handle_tolerances(solver_kwargs, all_solver_args):
-        default_atol = 1e-8
-        # default_rtol = 1e-3
-        default_rtol = 0.0
-
         if "tol" in solver_kwargs and "tol" not in all_solver_args:
             atol = solver_kwargs.pop("tol")
         else:
-            atol = default_atol
+            atol = DEFAULT_ATOL
 
         if "tol" not in solver_kwargs and "tol" in all_solver_args:
             if "atol" in solver_kwargs:
@@ -316,7 +314,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_kwargs["atol"] = atol
 
         if "rtol" not in solver_kwargs and "rtol" in all_solver_args:
-            solver_kwargs["rtol"] = default_rtol
+            solver_kwargs["rtol"] = DEFAULT_RTOL
 
         if "rtol" in solver_kwargs and "rtol" not in all_solver_args:
             del solver_kwargs["rtol"]

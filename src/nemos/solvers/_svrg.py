@@ -20,6 +20,8 @@ from ..typing import KeyArrayLike, Pytree
 
 from optimistix import max_norm, two_norm
 
+from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL
+
 
 class SVRGState(NamedTuple):
     """
@@ -121,14 +123,16 @@ class ProxSVRG:
         max_steps: int = 10_000,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
-        tol: float = 1e-3,
+        atol: float = DEFAULT_ATOL,
+        rtol: float = DEFAULT_RTOL,
         batch_size: int = 1,
     ):
         self.fun = fun
         self.max_steps = max_steps
         self.key = key
         self.stepsize = stepsize
-        self.tol = tol
+        self.atol = atol
+        self.rtol = rtol
         self.loss_gradient = jit(grad(self.fun))
         self.batch_size = batch_size
         self.proximal_operator = prox
@@ -467,12 +471,12 @@ class ProxSVRG:
             reference_point = params
 
             y_converged, f_converged = self.cauchy_termination(
-                # self.rtol,
-                # self.atol,
+                self.rtol,
+                self.atol,
                 # 0.0,
                 # self.tol,
-                0.0,
-                self.tol * state.stepsize,
+                # 0.0,
+                # self.tol * state.stepsize,
                 reference_point,
                 prev_reference_point,
                 self.fun(reference_point, args),
@@ -481,9 +485,9 @@ class ProxSVRG:
 
             state = state._replace(
                 reference_point=reference_point,
-                error=self._error(
-                    reference_point, prev_reference_point, state.stepsize
-                ),
+                # error=self._error(
+                #    reference_point, prev_reference_point, state.stepsize
+                # ),
                 y_converged=y_converged,
                 f_converged=f_converged,
             )
@@ -493,7 +497,7 @@ class ProxSVRG:
         # at the end of each epoch, check for convergence or reaching the max number of epochs
         def cond_fun(step):
             _, state = step
-            # return (state.iter_num <= self.max_steps) & (state.error >= self.tol)
+            # return (state.iter_num <= self.max_steps) & (state.error >= self.atol)
             return (
                 (state.iter_num <= self.max_steps)
                 & ~state.y_converged
@@ -714,7 +718,8 @@ class SVRG(ProxSVRG):
         max_steps: int = 10_000,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
-        tol: float = 1e-3,
+        atol: float = DEFAULT_ATOL,
+        rtol: float = DEFAULT_RTOL,
         batch_size: int = 1,
     ):
         super().__init__(
@@ -723,35 +728,36 @@ class SVRG(ProxSVRG):
             max_steps,
             key,
             stepsize,
-            tol,
+            atol,
+            rtol,
             batch_size,
         )
 
-    def init_state(self, init_params: Pytree, *args, **kwargs) -> SVRGState:
-        """
-        Initialize the solver state
+    # def init_state(self, init_params: Pytree, *args, **kwargs) -> SVRGState:
+    #    """
+    #    Initialize the solver state
 
-        Parameters
-        ----------
-        init_params :
-            pytree containing the initial parameters.
-        args:
-            Positional arguments passed to loss function `fun` and its gradient (e.g. `fun(params, *args)`),
-            most likely input and output data.
-            They are expected to be Pytrees with arrays or FeaturePytree as their leaves, with all of their
-            leaves having the same sized first dimension (corresponding to the number of data points).
-            For GLMs these are:
-                X : DESIGN_INPUT_TYPE
-                    Input data.
-                y : jnp.ndarray
-                    Output data.
+    #    Parameters
+    #    ----------
+    #    init_params :
+    #        pytree containing the initial parameters.
+    #    args:
+    #        Positional arguments passed to loss function `fun` and its gradient (e.g. `fun(params, *args)`),
+    #        most likely input and output data.
+    #        They are expected to be Pytrees with arrays or FeaturePytree as their leaves, with all of their
+    #        leaves having the same sized first dimension (corresponding to the number of data points).
+    #        For GLMs these are:
+    #            X : DESIGN_INPUT_TYPE
+    #                Input data.
+    #            y : jnp.ndarray
+    #                Output data.
 
-        Returns
-        -------
-        state :
-            Initialized optimizer state
-        """
-        return super().init_state(init_params, *args, **kwargs)
+    #    Returns
+    #    -------
+    #    state :
+    #        Initialized optimizer state
+    #    """
+    #    return super().init_state(init_params, *args, **kwargs)
 
     @partial(jit, static_argnums=(0,))
     def update(self, params: Pytree, state: SVRGState, *args, **kwargs) -> OptStep:
