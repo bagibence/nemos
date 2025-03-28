@@ -13,27 +13,7 @@ import jax.numpy as jnp
 from optimistix._solver.optax import _OptaxState
 from ..tree_utils import tree_sub
 
-
-class ScaleByLearningRateState(NamedTuple):
-    learning_rate: Union[float, jax.Array]
-
-
-def scale_by_learning_rate(
-    stepsize: float, flip_sign: bool = True
-) -> optax.GradientTransformation:
-    m = -1 if flip_sign else 1
-
-    def init_fn(params):
-        del params
-        return ScaleByLearningRateState(jnp.array(stepsize))
-
-    def update_fn(updates, state, params=None):
-        del params
-        updates = jax.tree.map(lambda g: m * stepsize * g, updates)
-
-        return updates, state
-
-    return optax.GradientTransformation(init_fn, update_fn)
+from ._optax_based_solvers import _make_rate_scaler
 
 
 class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
@@ -62,7 +42,7 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
 
         _optax_proxgrad = optax.chain(
             optax.sgd(learning_rate=1.0, nesterov=True),
-            self._make_rate_scaler(stepsize, linesearch_kwargs),
+            _make_rate_scaler(stepsize, linesearch_kwargs),
         )
 
         super().__init__(
@@ -73,44 +53,8 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
             verbose=verbose,
         )
 
-    @staticmethod
-    def _make_rate_scaler(
-        stepsize: float | None,
-        linesearch_kwargs: dict[str, Any] | None,
-    ):
-        if stepsize is None:
-            if linesearch_kwargs is None:
-                linesearch_kwargs = {
-                    "approx_dec_rtol": None,  # setting this to none might be useful
-                }
-
-            if "max_linesearch_steps" not in linesearch_kwargs:
-                linesearch_kwargs["max_linesearch_steps"] = 15
-
-            return optax.scale_by_zoom_linesearch(**linesearch_kwargs)
-        else:
-            return scale_by_learning_rate(stepsize)
-
     def get_learning_rate(self, state):
         return state.opt_state[-1].learning_rate
-
-    # def step(
-    #    self,
-    #    fn,
-    #    y,
-    #    args,
-    #    options,
-    #    state,
-    #    tags,
-    # ):
-    #    new_params, new_state, new_aux = super().step(fn, y, args, options, state, tags)
-
-    #    new_params = self.prox(new_params, self.get_learning_rate(new_state))
-
-    #    # TODO do I need something like this or not?
-    #    # new_state = eqx.tree_at(lambda s: s.y_eval, new_state, new_params)
-
-    #    return new_params, new_state, new_aux
 
     def step(
         self,
@@ -121,43 +65,79 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         state,
         tags: frozenset[object],
     ):
-        (f, aux), grads = eqx.filter_value_and_grad(fn, has_aux=True)(y, args)
-        f = cast(Array, f)
-        # if len(self.verbose) > 0:
-        #    verbose_print(
-        #        ("step" in self.verbose, "Step", state.step),
-        #        ("loss" in self.verbose, "Loss", f),
-        #        ("y" in self.verbose, "y", y),
-        #    )
+        # take gradient step
+        new_params, new_state, new_aux = super().step(fn, y, args, options, state, tags)
 
-        # fix args and discard aux
-        _fn_for_optax = lambda y: fn(y, args)[0]
-
-        updates, new_opt_state = self.optim.update(
-            grads, state.opt_state, y, value=f, grad=grads, value_fn=_fn_for_optax
-        )
-        new_y = eqx.apply_updates(y, updates)
-
-        new_y = self.prox(
-            new_y,
+        # apply the proximal operator
+        new_params = self.prox(
+            new_params,
             options["regularizer_strength"],
-            new_opt_state[-1].learning_rate,
+            self.get_learning_rate(new_state),
         )
-        updates = tree_sub(new_y, y)
 
+        # recheck convergence criteria with the projected point
+        updates = tree_sub(new_params, y)
         terminate = optx._misc.cauchy_termination(
             self.rtol,
             self.atol,
             self.norm,
             y,
             updates,
-            f,
-            f - state.f,
+            new_state.f,
+            new_state.f - state.f,
         )
-        new_state = _OptaxState(
-            step=state.step + 1, f=f, opt_state=new_opt_state, terminate=terminate
-        )
-        return new_y, new_state, aux
+
+        new_state = eqx.tree_at(lambda s: s.terminate, new_state, terminate)
+
+        return new_params, new_state, new_aux
+
+    # THIS ONE WORKS, but it's a bit complicated
+    # def step(
+    #    self,
+    #    fn,
+    #    y,
+    #    args: PyTree,
+    #    options: dict[str, Any],
+    #    state,
+    #    tags: frozenset[object],
+    # ):
+    #    (f, aux), grads = eqx.filter_value_and_grad(fn, has_aux=True)(y, args)
+    #    f = cast(Array, f)
+    #    # if len(self.verbose) > 0:
+    #    #    verbose_print(
+    #    #        ("step" in self.verbose, "Step", state.step),
+    #    #        ("loss" in self.verbose, "Loss", f),
+    #    #        ("y" in self.verbose, "y", y),
+    #    #    )
+
+    #    # fix args and discard aux
+    #    _fn_for_optax = lambda y: fn(y, args)[0]
+
+    #    updates, new_opt_state = self.optim.update(
+    #        grads, state.opt_state, y, value=f, grad=grads, value_fn=_fn_for_optax
+    #    )
+    #    new_y = eqx.apply_updates(y, updates)
+
+    #    new_y = self.prox(
+    #        new_y,
+    #        options["regularizer_strength"],
+    #        new_opt_state[-1].learning_rate,
+    #    )
+    #    updates = tree_sub(new_y, y)
+
+    #    terminate = optx._misc.cauchy_termination(
+    #        self.rtol,
+    #        self.atol,
+    #        self.norm,
+    #        y,
+    #        updates,
+    #        f,
+    #        f - state.f,
+    #    )
+    #    new_state = _OptaxState(
+    #        step=state.step + 1, f=f, opt_state=new_opt_state, terminate=terminate
+    #    )
+    #    return new_y, new_state, aux
 
     def run(
         self,

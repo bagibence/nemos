@@ -1,16 +1,39 @@
 from collections.abc import Callable
 from jaxtyping import PyTree, Scalar, ArrayLike
-from typing import Optional, Union, Any, cast
+from typing import Optional, Union, Any, cast, NamedTuple
 
 import optimistix as optx
 import optax
 
 import jax
+import jax.numpy as jnp
 import equinox as eqx
 from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
 
 from ._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
+
+
+class ScaleByLearningRateState(NamedTuple):
+    learning_rate: Union[float, jax.Array]
+
+
+def stateful_scale_by_learning_rate(
+    stepsize: float, flip_sign: bool = True
+) -> optax.GradientTransformation:
+    m = -1 if flip_sign else 1
+
+    def init_fn(params):
+        del params
+        return ScaleByLearningRateState(jnp.array(stepsize))
+
+    def update_fn(updates, state, params=None):
+        del params
+        updates = jax.tree.map(lambda g: m * stepsize * g, updates)
+
+        return updates, state
+
+    return optax.GradientTransformation(init_fn, update_fn)
 
 
 def _make_rate_scaler(
@@ -27,8 +50,15 @@ def _make_rate_scaler(
             linesearch_kwargs["max_linesearch_steps"] = 15
 
         return optax.scale_by_zoom_linesearch(**linesearch_kwargs)
+        # if "max_backtracking_steps" not in linesearch_kwargs:
+        #    linesearch_kwargs["max_backtracking_steps"] = 15
+
+        # return optax.scale_by_backtracking_linesearch(**linesearch_kwargs)
     else:
-        return optax.scale_by_learning_rate(stepsize)
+        # NOTE GradientDescent works with optax.scale_by_learning_rate as well
+        # but for _prox_grad_learning_rate_from_optax.ProximalGradient
+        # we need to be able to extract the current learning rate
+        return stateful_scale_by_learning_rate(stepsize)
 
 
 class GradientDescent(optx.OptaxMinimiser, OptimistixSolverMixin):
