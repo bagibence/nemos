@@ -461,8 +461,8 @@ class BaseRegressor(Base, abc.ABC):
         if "throw" not in solver_kwargs:
             solver_kwargs["throw"] = False
 
-        # if "norm" not in solver_kwargs:
-        #    solver_kwargs["norm"] = optx.two_norm
+        if "norm" not in solver_kwargs:
+            solver_kwargs["norm"] = optx.two_norm
 
         # NOTE this is here for the Optax-based solver that needs this upon initialization
         if "regularizer_strength" in self._get_all_solver_args(solver_class):

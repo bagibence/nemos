@@ -126,6 +126,7 @@ class ProxSVRG:
         atol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
         batch_size: int = 1,
+        norm: Callable = max_norm,
     ):
         self.fun = fun
         self.max_steps = max_steps
@@ -133,6 +134,7 @@ class ProxSVRG:
         self.stepsize = stepsize
         self.atol = atol
         self.rtol = rtol
+        self.norm = norm
         self.loss_gradient = jit(grad(self.fun))
         self.batch_size = batch_size
         self.proximal_operator = prox
@@ -476,11 +478,12 @@ class ProxSVRG:
                 # 0.0,
                 # self.tol,
                 # 0.0,
-                # self.tol * state.stepsize,
+                # self.atol * state.stepsize,
                 reference_point,
                 prev_reference_point,
                 self.fun(reference_point, args),
                 self.fun(prev_reference_point, args),
+                self.norm,
             )
 
             state = state._replace(
@@ -635,7 +638,7 @@ class ProxSVRG:
         y_prev,
         f,
         f_prev,
-        norm: Callable = two_norm,
+        norm,
     ):
         y_scale = jax.tree.map(
             lambda x: atol + x,
