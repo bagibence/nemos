@@ -20,7 +20,7 @@ from ..typing import KeyArrayLike, Pytree
 
 from optimistix import max_norm, two_norm
 
-from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL
+from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_MAX_STEPS
 
 
 class SVRGState(NamedTuple):
@@ -120,7 +120,7 @@ class ProxSVRG:
         self,
         fun: Callable,
         prox: Callable,
-        max_steps: int = 10_000,
+        max_steps: int = DEFAULT_MAX_STEPS,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
         atol: float = DEFAULT_ATOL,
@@ -718,7 +718,7 @@ class SVRG(ProxSVRG):
     def __init__(
         self,
         fun: Callable,
-        max_steps: int = 10_000,
+        max_steps: int = DEFAULT_MAX_STEPS,
         key: Optional[KeyArrayLike] = None,
         stepsize: float = 1e-3,
         atol: float = DEFAULT_ATOL,
