@@ -6,7 +6,7 @@ import optimistix as optx
 import jax.numpy as jnp
 import jax
 
-from ._optimistix_solvers import OptimistixSolverMixin
+from ._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
 from typing import Callable, Optional, Any
 from jaxtyping import PyTree, Scalar
 
@@ -236,7 +236,7 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         *args,
         options: Optional[dict[str, Any]] = None,
         has_aux: bool = False,
-        max_steps: Optional[int] = 100_000,
+        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
         adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
         throw: bool = True,
         tags: frozenset[object] = frozenset(),

@@ -6,18 +6,17 @@ from ._svrg_defaults import (
 from ._optimistix_solvers import (
     BFGS,
     NonlinearCG,
-    # GradientDescent
+    # GradientDescent,
 )
 from ._optax_based_solvers import (
     LBFGS,
-    # ProximalGradient,
     GradientDescent,
 )
 
 # from ._optimistix_prox_grad import ProximalGradient
 
 from ._prox_grad_learning_rate_from_optax import ProximalGradient
-from ._optimistix_solvers import (
-    DEFAULT_ATOL,
-    DEFAULT_RTOL,
-)
+
+# from ._prox_grad_learning_rate_within_optax import ProximalGradient
+
+from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_MAX_STEPS

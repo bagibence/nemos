@@ -12,6 +12,8 @@ from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 DEFAULT_ATOL = 1e-8
 DEFAULT_RTOL = 0.0
 
+DEFAULT_MAX_STEPS = 100_000
+
 
 class OptimistixSolverMixin:
     def run(
@@ -20,7 +22,7 @@ class OptimistixSolverMixin:
         *args,
         options: Optional[dict[str, Any]] = None,
         has_aux: bool = False,
-        max_steps: Optional[int] = 100_000,
+        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
         adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
         throw: bool = True,
         tags: frozenset[object] = frozenset(),

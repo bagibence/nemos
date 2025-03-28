@@ -1,6 +1,6 @@
 from typing import Union, Callable, Optional, Any
 
-from ._optimistix_solvers import GradientDescent
+from ._optimistix_solvers import GradientDescent, DEFAULT_MAX_STEPS
 
 from jaxtyping import PyTree, Scalar, ArrayLike
 
@@ -94,7 +94,7 @@ class ProximalGradient(GradientDescent):
         *args,
         options: Optional[dict[str, Any]] = None,
         has_aux: bool = False,
-        max_steps: Optional[int] = 100_000,
+        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
         adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
         throw: bool = True,
         tags: frozenset[object] = frozenset(),

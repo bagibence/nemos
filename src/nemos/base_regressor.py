@@ -22,7 +22,7 @@ from .base_class import Base
 from .regularizer import Regularizer, UnRegularized, GroupLasso
 from .typing import DESIGN_INPUT_TYPE, SolverInit, SolverRun, SolverUpdate
 
-from .solvers import DEFAULT_ATOL, DEFAULT_RTOL
+from .solvers import DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_MAX_STEPS
 
 
 # TODO might want to extend the type annotation to equinox.JitWrapper if that's not a callable
@@ -454,7 +454,7 @@ class BaseRegressor(Base, abc.ABC):
         # the default number of steps is 256,
         # if not explicitly given, increase the default
         if "max_steps" not in solver_kwargs:
-            solver_kwargs["max_steps"] = 100_000
+            solver_kwargs["max_steps"] = DEFAULT_MAX_STEPS
 
         # 'throw' sets if the minimisation throws an error if an iterative solver runs out of steps
         # TODO decide on a default

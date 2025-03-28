@@ -3,7 +3,7 @@ import optax
 import optimistix as optx
 from typing import NamedTuple, Union, Any, Callable, Optional, cast
 
-from nemos.solvers._optimistix_solvers import OptimistixSolverMixin
+from nemos.solvers._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
 
 from jaxtyping import PyTree, Scalar, ArrayLike, Array
 
@@ -166,7 +166,7 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         *args,
         options: Optional[dict[str, Any]] = None,
         has_aux: bool = False,
-        max_steps: Optional[int] = 100_000,
+        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
         adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
         throw: bool = True,
         tags: frozenset[object] = frozenset(),

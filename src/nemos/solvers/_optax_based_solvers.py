@@ -10,7 +10,7 @@ import equinox as eqx
 from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
 
-from ._optimistix_solvers import OptimistixSolverMixin
+from ._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
 
 
 def _make_rate_scaler(
