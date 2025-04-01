@@ -301,8 +301,8 @@ class BaseRegressor(Base, abc.ABC):
 
     @staticmethod
     def _handle_tolerances(
-        solver_kwargs: dict[str, Any], all_solver_args: list[str]
-    ) -> dict:
+        solver_kwargs: dict[str, Any], all_solver_args: set[str]
+    ) -> dict[str, Any]:
         """
         Handle the potential discrepancy between how tolerance is passed to the
         solvers and how they expect it.
@@ -319,7 +319,7 @@ class BaseRegressor(Base, abc.ABC):
 
         Returns
         -------
-        solver_kwargs updated to contain the expected tolerance name and value.
+        Copy of solver_kwargs updated to contain the expected tolerance name and value.
         """
         if "atol" in solver_kwargs and "tol" in solver_kwargs:
             raise ValueError("Cannot set both `tol` and `atol` in the solver settings.")
