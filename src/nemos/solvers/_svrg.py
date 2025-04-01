@@ -473,12 +473,10 @@ class ProxSVRG:
             reference_point = params
 
             y_converged, f_converged = self.cauchy_termination(
+                # self.atol,
+                # self.rtol,
                 self.rtol,
-                self.atol,
-                # 0.0,
-                # self.tol,
-                # 0.0,
-                # self.atol * state.stepsize,
+                self.atol * state.stepsize,
                 reference_point,
                 prev_reference_point,
                 self.fun(reference_point, args),
