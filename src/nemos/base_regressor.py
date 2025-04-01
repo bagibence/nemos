@@ -322,35 +322,34 @@ class BaseRegressor(Base, abc.ABC):
         solver_kwargs updated to contain the expected tolerance name and value.
         """
         if "atol" in solver_kwargs and "tol" in solver_kwargs:
-            raise ValueError("Cannot set both tol and atol in the solver settings.")
+            raise ValueError("Cannot set both `tol` and `atol` in the solver settings.")
         if "rtol" in solver_kwargs and "tol" in solver_kwargs:
-            raise ValueError("Cannot set both tol and rtol in the solver settings.")
+            raise ValueError("Cannot set both `tol` and `rtol` in the solver settings.")
 
-        atol = DEFAULT_ATOL
+        needs_tol = "tol" in all_solver_args
+        needs_atol = "atol" in all_solver_args
+        needs_rtol = "rtol" in all_solver_args
 
-        # if we get tol but don't need it, use it for atol instead of the default
-        if "tol" in solver_kwargs and "tol" not in all_solver_args:
-            atol = solver_kwargs.pop("tol")
+        cleaned_solver_kwargs = solver_kwargs.copy()
 
-        # if we don't get tol but could take it
-        if "tol" not in solver_kwargs and "tol" in all_solver_args:
-            if "atol" in solver_kwargs:
-                solver_kwargs["tol"] = solver_kwargs.pop("atol")
+        tol = cleaned_solver_kwargs.pop("tol", None)
+        atol = cleaned_solver_kwargs.pop("atol", None)
+        rtol = cleaned_solver_kwargs.pop("rtol", None)
 
-        # if we don't get atol but need it, set it to the default value or
-        # tol if that's present
-        if "atol" not in solver_kwargs and "atol" in all_solver_args:
-            solver_kwargs["atol"] = atol
+        if needs_tol:
+            cleaned_solver_kwargs["tol"] = (
+                tol if tol is not None else atol if atol is not None else DEFAULT_ATOL
+            )
 
-        # if we don't get rtol but need it, set it to the default value
-        if "rtol" not in solver_kwargs and "rtol" in all_solver_args:
-            solver_kwargs["rtol"] = DEFAULT_RTOL
+        if needs_atol:
+            cleaned_solver_kwargs["atol"] = (
+                atol if atol is not None else tol if tol is not None else DEFAULT_ATOL
+            )
 
-        # if we get rtol but don't need it, delete it
-        if "rtol" in solver_kwargs and "rtol" not in all_solver_args:
-            del solver_kwargs["rtol"]
+        if needs_rtol:
+            cleaned_solver_kwargs["rtol"] = rtol if rtol is not None else DEFAULT_RTOL
 
-        return solver_kwargs
+        return cleaned_solver_kwargs
 
     @staticmethod
     def _check_solver_kwargs(solver_class, solver_kwargs):
