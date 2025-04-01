@@ -416,38 +416,29 @@ class BaseRegressor(Base, abc.ABC):
                 f"{self._regularizer.allowed_solvers}."
             )
 
-        solver_class = self._get_solver_class(self.solver_name)
+        _proximal_solvers = ("ProximalGradient", "ProxSVRG", "JaxoptProximalGradient")
+
+        # optimistix functions (e.g. solver.step and optx.minimise) take data as a tuple, and I adapted SVRG to behave the same
+        # but nemos usually separates them to X, y
+        def loss(params, xy_args):
+            return self._predict_and_compute_loss(params, *xy_args)
 
         # only use penalized loss if not using proximal gradient descent
         # In proximal method you must use the unpenalized loss independently
         # of what regularizer you are using.
-        def _unpenalized_loss(params, xy_args):
-            return self._predict_and_compute_loss(params, *xy_args)
+        if self.solver_name not in _proximal_solvers:
+            loss = self.regularizer.penalized_loss(loss, self.regularizer_strength)
 
-        if self.solver_name not in (
-            "ProximalGradient",
-            "ProxSVRG",
-            "JaxoptProximalGradient",
-        ):
-            loss = self.regularizer.penalized_loss(
-                _unpenalized_loss, self.regularizer_strength
-            )
-        else:
-            loss = _unpenalized_loss
+        # check that the loss is Callable
+        utils.assert_is_callable(loss, "loss")
+        self._solver_loss_fun_ = loss
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
             solver_kwargs = deepcopy(self.solver_kwargs)
 
-        # check that the loss is Callable
-        utils.assert_is_callable(loss, "loss")
-
         # some parsing to make sure solver gets instantiated properly
-        if self.solver_name in (
-            "ProximalGradient",
-            "ProxSVRG",
-            "JaxoptProximalGradient",
-        ):
+        if self.solver_name in _proximal_solvers:
             if "prox" in self.solver_kwargs:
                 raise ValueError(
                     "Proximal operator specification is not permitted. "
@@ -455,60 +446,36 @@ class BaseRegressor(Base, abc.ABC):
                     "Please remove the 'prox' argument from the `solver_kwargs` "
                 )
 
-            # TODO How about moving regularization strength into the regularizer?
-            # and passing it to _create_regularizer
-            # which would check if the regularizer takes a regularizer_strength or not
-            # so raise an error if Ridge and Lasso don't get one, or if UnRegularized gets one
-            # Then self.regularizer.get_proximal_operator() would create it and this check would not be needed
             solver_kwargs.update(prox=self.regularizer.get_proximal_operator())
-            # add self.regularizer_strength to args
             args += (self.regularizer_strength,)
 
-        # TODO Now that I have an explicit interface for each solver in solvers._optimistix_solvers
-        # I could define those arguments explicitly with a default, and then this is not needed
+        # set defaults for common arguments required by optimistix solvers
+        _optimistix_defaults = {
+            # options dict passed around within optimistix. e.g. ProximalGradient uses it to pass regularizer_strength
+            "options": {},
+            # "The shape+dtype of the output of `fn`"
+            "f_struct": jax.ShapeDtypeStruct((), jnp.float32),
+            # this would be the output shape + dtype of the aux variables fn returns
+            "aux_struct": None,
+            # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy."
+            "tags": frozenset(),
+            # increase optimistix's default of 256
+            "max_steps": DEFAULT_MAX_STEPS,
+            # sets if the minimisation throws an error if an iterative solver runs out of steps
+            "throw": False,
+            # norm used in the Cauchy convergence criterion
+            "norm": optx.two_norm,
+        }
+        solver_kwargs = _optimistix_defaults | solver_kwargs
 
-        # set defaults
-        # alternative syntax could be solver_kwargs.setdefault("options", {})
-        # I assume options should be the same across methods of the solver
-        # might want to put regularizer_strength in here
-        if "options" not in solver_kwargs:
-            solver_kwargs["options"] = {}
-
-        # "The shape+dtype of the output of `fn`"
-        # TODO We might want this to be jnp.float64 or decide based on if 64bit operations are set
-        if "f_struct" not in solver_kwargs:
-            solver_kwargs["f_struct"] = jax.ShapeDtypeStruct((), jnp.float32)
-
-        # I guess this would be the output shape + dtype of the aux variables fn returns
-        # in our case the loss doesn't return anything else
-        if "aux_struct" not in solver_kwargs:
-            solver_kwargs["aux_struct"] = None
-
-        # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy.
-        # (In this case it's just a 1x1 matrix, so these don't matter.)"
-        if "tags" not in solver_kwargs:
-            solver_kwargs["tags"] = frozenset()
-
-        # the default number of steps is 256,
-        # if not explicitly given, increase the default
-        if "max_steps" not in solver_kwargs:
-            solver_kwargs["max_steps"] = DEFAULT_MAX_STEPS
-
-        # 'throw' sets if the minimisation throws an error if an iterative solver runs out of steps
-        # TODO decide on a default
-        if "throw" not in solver_kwargs:
-            solver_kwargs["throw"] = False
-
-        if "norm" not in solver_kwargs:
-            solver_kwargs["norm"] = optx.two_norm
+        solver_class = self._get_solver_class(self.solver_name)
+        _all_solver_args = self._get_all_solver_args(solver_class)
 
         # NOTE this is here for the Optax-based solver that needs this upon initialization
-        if "regularizer_strength" in self._get_all_solver_args(solver_class):
+        if "regularizer_strength" in _all_solver_args:
             solver_kwargs["regularizer_strength"] = self.regularizer_strength
 
-        solver_kwargs = BaseRegressor._handle_tolerances(
-            solver_kwargs, self._get_all_solver_args(solver_class)
-        )
+        solver_kwargs = self._handle_tolerances(solver_kwargs, _all_solver_args)
 
         (
             solver_run_kwargs,
@@ -517,13 +484,6 @@ class BaseRegressor(Base, abc.ABC):
             solver_init_kwargs,
             solver_terminate_kwargs,
         ) = self._inspect_solver_kwargs(solver_kwargs)
-
-        # optimistix functions take data (called args) as a tuple, but nemos separates them to X, y
-        # I adapted SVRG to behave the same
-        # TODO it might have to be done the other way, keeping the SVRG interface
-        # solver.step takes function of this form
-
-        self._solver_loss_fun_ = loss
 
         # instantiate the solver
         solver = solver_class(fun=loss, **solver_init_kwargs)
