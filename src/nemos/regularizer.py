@@ -112,7 +112,9 @@ class UnRegularized(Regularizer):
         "ProximalGradient",
         "SVRG",
         "ProxSVRG",
-        "LSGradientDescent",
+        "JaxoptGradientDescent",
+        "JaxoptProximalGradient",
+        "JaxoptLBFGS",
     )
 
     _default_solver = "GradientDescent"
@@ -159,6 +161,9 @@ class Ridge(Regularizer):
         "ProximalGradient",
         "SVRG",
         "ProxSVRG",
+        "JaxoptGradientDescent",
+        "JaxoptProximalGradient",
+        "JaxoptLBFGS",
     )
 
     _default_solver = "GradientDescent"
@@ -241,6 +246,7 @@ class Lasso(Regularizer):
     _allowed_solvers = (
         "ProximalGradient",
         "ProxSVRG",
+        "JaxoptProximalGradient",
     )
 
     _default_solver = "ProximalGradient"
@@ -353,6 +359,7 @@ class GroupLasso(Regularizer):
     _allowed_solvers = (
         "ProximalGradient",
         "ProxSVRG",
+        "JaxoptProximalGradient",
     )
 
     _default_solver = "ProximalGradient"

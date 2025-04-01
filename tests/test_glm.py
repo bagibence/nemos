@@ -1942,6 +1942,7 @@ class TestGLM:
             ("ProximalGradient", False),
             ("SVRG", True),
             ("ProxSVRG", True),
+            ("JaxoptProximalGradient", False),
         ],
     )
     @pytest.mark.parametrize(
@@ -2029,6 +2030,7 @@ class TestGLM:
             ("ProximalGradient", False),
             ("SVRG", True),
             ("ProxSVRG", True),
+            ("JaxoptProximalGradient", False),
         ],
     )
     @pytest.mark.parametrize(
@@ -3753,6 +3755,12 @@ class TestPopulationGLM:
                 "ProximalGradient",
                 {"tol": 10**-14},
             ),
+            (
+                nmo.regularizer.Lasso(),
+                0.001,
+                "JaxoptProximalGradient",
+                {"tol": 10**-14},
+            ),
         ],
     )
     @pytest.mark.parametrize(
@@ -4084,6 +4092,7 @@ class TestPopulationGLM:
             ("ProximalGradient", False),
             ("SVRG", True),
             ("ProxSVRG", True),
+            ("JaxoptProximalGradient", False),
         ],
     )
     @pytest.mark.parametrize(
@@ -4171,6 +4180,7 @@ class TestPopulationGLM:
             ("ProximalGradient", False),
             ("SVRG", True),
             ("ProxSVRG", True),
+            ("JaxoptProximalGradient", False),
         ],
     )
     @pytest.mark.parametrize(

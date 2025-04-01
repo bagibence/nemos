@@ -394,7 +394,11 @@ class BaseRegressor(Base, abc.ABC):
         def _unpenalized_loss(params, xy_args):
             return self._predict_and_compute_loss(params, *xy_args)
 
-        if self.solver_name not in ("ProximalGradient", "ProxSVRG"):
+        if self.solver_name not in (
+            "ProximalGradient",
+            "ProxSVRG",
+            "JaxoptProximalGradient",
+        ):
             loss = self.regularizer.penalized_loss(
                 _unpenalized_loss, self.regularizer_strength
             )
@@ -409,7 +413,11 @@ class BaseRegressor(Base, abc.ABC):
         utils.assert_is_callable(loss, "loss")
 
         # some parsing to make sure solver gets instantiated properly
-        if self.solver_name in ("ProximalGradient", "ProxSVRG"):
+        if self.solver_name in (
+            "ProximalGradient",
+            "ProxSVRG",
+            "JaxoptProximalGradient",
+        ):
             if "prox" in self.solver_kwargs:
                 raise ValueError(
                     "Proximal operator specification is not permitted. "
@@ -484,8 +492,6 @@ class BaseRegressor(Base, abc.ABC):
         # I adapted SVRG to behave the same
         # TODO it might have to be done the other way, keeping the SVRG interface
         # solver.step takes function of this form
-        def _loss_with_aux(params, xy_args):
-            return loss(params, xy_args), None
 
         self._solver_loss_fun_ = loss
 
@@ -513,7 +519,10 @@ class BaseRegressor(Base, abc.ABC):
         def solver_init_state(params, *run_args, **run_kwargs):
             # NOTE I added a .init to SVRG which mimics the .init of optimistix solvers
             return solver.init(
-                fn=loss, y=params, args=run_args, **solver_init_state_kwargs
+                fn=loss,
+                y=params,
+                args=(*args, *run_args),
+                **solver_init_state_kwargs,
             )
 
         # TODO type annotation

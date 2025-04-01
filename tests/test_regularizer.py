@@ -282,7 +282,15 @@ class TestUnRegularized:
 
     @pytest.mark.parametrize(
         "solver_name",
-        ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
+        [
+            "GradientDescent",
+            "BFGS",
+            "ProximalGradient",
+            "SVRG",
+            "ProxSVRG",
+            "JaxoptProximalGradient",
+            "JaxoptGradientDescent",
+        ],
     )
     def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
         """Test that the solver runs."""
@@ -297,7 +305,15 @@ class TestUnRegularized:
 
     @pytest.mark.parametrize(
         "solver_name",
-        ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
+        [
+            "GradientDescent",
+            "BFGS",
+            "ProximalGradient",
+            "SVRG",
+            "ProxSVRG",
+            "JaxoptProximalGradient",
+            "JaxoptGradientDescent",
+        ],
     )
     def test_run_solver_tree(self, solver_name, poissonGLM_model_instantiation_pytree):
         """Test that the solver runs."""
@@ -314,7 +330,9 @@ class TestUnRegularized:
             y,
         )
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize(
+        "solver_name", ["GradientDescent", "SVRG", "JaxoptGradientDescent"]
+    )
     def test_solver_output_match(self, poissonGLM_model_instantiation, solver_name):
         """Test that different solvers converge to the same solution."""
         jax.config.update("jax_enable_x64", True)
@@ -346,7 +364,9 @@ class TestUnRegularized:
                 "Convex estimators should converge to the same numerical value."
             )
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize(
+        "solver_name", ["GradientDescent", "SVRG", "JaxoptGradientDescent"]
+    )
     def test_solver_match_sklearn(self, poissonGLM_model_instantiation, solver_name):
         """Test that different solvers converge to the same solution."""
         jax.config.update("jax_enable_x64", True)
@@ -368,7 +388,9 @@ class TestUnRegularized:
         if (not match_weights) or (not match_intercepts):
             raise ValueError("UnRegularized GLM estimate does not match sklearn!")
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize(
+        "solver_name", ["GradientDescent", "SVRG", "JaxoptGradientDescent"]
+    )
     def test_solver_match_sklearn_gamma(
         self, gammaGLM_model_instantiation, solver_name
     ):
@@ -401,7 +423,7 @@ class TestUnRegularized:
         ],
     )
     # @pytest.mark.parametrize("solver_name", ["LBFGS", "GradientDescent", "SVRG"])
-    @pytest.mark.parametrize("solver_name", ["LBFGS", "SVRG"])
+    @pytest.mark.parametrize("solver_name", ["LBFGS", "SVRG", "JaxoptGradientDescent"])
     def test_solver_match_statsmodels_gamma(
         self, inv_link_jax, link_sm, gammaGLM_model_instantiation, solver_name
     ):

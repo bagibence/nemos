@@ -7,6 +7,7 @@ import pytest
 
 import nemos as nmo
 from nemos.solvers._svrg import SVRG, ProxSVRG, SVRGState
+from nemos.solvers import JaxoptProximalGradient
 from nemos.tree_utils import pytree_map_and_reduce, tree_l2_norm, tree_slice, tree_sub
 
 from nemos.proximal_operator import prox_lasso
@@ -312,6 +313,22 @@ def test_svrg_glm_update(
         ("GroupLasso", "ProximalGradient", np.array([[1, 1, 1, 1, 1]]).astype(float)),
         ("Ridge", "SVRG", None),
         ("UnRegularized", "SVRG", None),
+        ("Lasso", "JaxoptProximalGradient", None),
+        (
+            "GroupLasso",
+            "JaxoptProximalGradient",
+            np.array([[0, 1, 0, 1, 1], [1, 0, 1, 0, 0]]).astype(float),
+        ),
+        (
+            "GroupLasso",
+            "JaxoptProximalGradient",
+            np.array([[1, 1, 1, 1, 1]]).astype(float),
+        ),
+        (
+            "GroupLasso",
+            "ProximalGradient",
+            np.array([[0, 1, 0, 1, 1], [1, 0, 1, 0, 0]]).astype(float),
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -333,11 +350,13 @@ def test_svrg_glm_fit(
     X, y, model, (w_true, b_true), rate = poissonGLM_model_instantiation
 
     # set tolerance to 0 so that doesn't stop the iteration
-    # (for jaxopt it used to be -1.)
     solver_kwargs = {
         "max_steps": max_steps,
         "tol": 0.0,
     }
+    # jaxopt uses a different convergence criteria
+    if "jaxopt" in solver_name.lower():
+        solver_kwargs["tol"] = -1.0
 
     # only pass mask if it's not None
     reg_cls = getattr(nmo.regularizer, regularizer_name)
@@ -366,12 +385,13 @@ def test_svrg_glm_fit(
 
     solver = inspect.getclosurevars(glm._solver_run).nonlocals["solver"]
 
-    if isinstance(solver, (ProxSVRG, SVRG)):
+    if isinstance(solver, (ProxSVRG, SVRG, JaxoptProximalGradient)):
         assert solver.max_steps == max_steps
         assert glm.solver_state_.iter_num == max_steps
     else:
         assert solver.stats["max_steps"] == max_steps
         assert solver.stats["num_steps"] == max_steps
+        assert glm.solver_state_.step == max_steps  # should be the same
 
 
 @pytest.mark.parametrize(

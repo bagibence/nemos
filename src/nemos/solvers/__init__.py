@@ -20,3 +20,5 @@ from ._prox_grad_learning_rate_from_optax import ProximalGradient
 # from ._prox_grad_learning_rate_within_optax import ProximalGradient
 
 from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_MAX_STEPS
+
+from ._jaxopt_solvers import JaxoptProximalGradient, JaxoptGradientDescent, JaxoptLBFGS

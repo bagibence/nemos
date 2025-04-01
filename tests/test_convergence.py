@@ -10,7 +10,12 @@ import nemos as nmo
 
 
 @pytest.mark.parametrize(
-    "solver_names", [("GradientDescent", "ProximalGradient"), ("SVRG", "ProxSVRG")]
+    "solver_names",
+    [
+        ("GradientDescent", "ProximalGradient"),
+        ("SVRG", "ProxSVRG"),
+        ("JaxoptGradientDescent", "JaxoptProximalGradient"),
+    ],
 )
 def test_unregularized_convergence(solver_names):
     """
@@ -49,7 +54,12 @@ def test_unregularized_convergence(solver_names):
 
 
 @pytest.mark.parametrize(
-    "solver_names", [("GradientDescent", "ProximalGradient"), ("SVRG", "ProxSVRG")]
+    "solver_names",
+    [
+        ("GradientDescent", "ProximalGradient"),
+        ("SVRG", "ProxSVRG"),
+        ("JaxoptGradientDescent", "JaxoptProximalGradient"),
+    ],
 )
 def test_ridge_convergence(solver_names):
     """
@@ -96,7 +106,9 @@ def test_ridge_convergence(solver_names):
     assert np.allclose(model_GD.intercept_, model_PG.intercept_)
 
 
-@pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+@pytest.mark.parametrize(
+    "solver_name", ["ProximalGradient", "ProxSVRG", "JaxoptProximalGradient"]
+)
 def test_lasso_convergence(solver_name):
     """
     Assert that solution found when using ProximalGradient versus Nelder-Mead method using
@@ -143,7 +155,9 @@ def test_lasso_convergence(solver_name):
     assert np.allclose(res.x[:1], model_PG.intercept_)
 
 
-@pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+@pytest.mark.parametrize(
+    "solver_name", ["ProximalGradient", "ProxSVRG", "JaxoptProximalGradient"]
+)
 def test_group_lasso_convergence(solver_name):
     """
     Assert that solution found when using ProximalGradient versus Nelder-Mead method using
