@@ -9,6 +9,9 @@ import jax
 import equinox as eqx
 from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
+from ._optimistix_linesearch_with_max_steps import MaxStepsBacktrackingArmijo
+
+
 DEFAULT_ATOL = 1e-8
 DEFAULT_RTOL = 0.0
 
@@ -203,10 +206,13 @@ class GradientDescent(optx.AbstractGradientDescent, OptimistixSolverMixin):
             # copy default behavior from Optax
             if "decrease_factor" not in linesearch_kwargs:
                 linesearch_kwargs["decrease_factor"] = 0.8
+                # linesearch_kwargs["decrease_factor"] = 0.5
             if "slope" not in linesearch_kwargs:
                 linesearch_kwargs["slope"] = 1e-4
+            if "max_linesearch_steps" not in linesearch_kwargs:
+                linesearch_kwargs["max_linesearch_steps"] = 50
             self._stepsize = None
-            self.search = optx.BacktrackingArmijo(**linesearch_kwargs)
+            self.search = MaxStepsBacktrackingArmijo(**linesearch_kwargs)
 
     def get_learning_rate(self, state):
         if self._stepsize is None:
