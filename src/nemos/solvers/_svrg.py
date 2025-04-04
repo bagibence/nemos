@@ -128,7 +128,7 @@ class ProxSVRG:
         batch_size: int = 1,
         norm: Callable = max_norm,
     ):
-        self.fun = fun
+        self.fun = jit(fun)
         self.max_steps = max_steps
         self.key = key
         self.stepsize = stepsize
