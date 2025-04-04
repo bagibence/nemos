@@ -95,6 +95,7 @@ class JaxoptLBFGS(jaxopt.LBFGS):
         fun,
         atol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
+        max_steps: int = DEFAULT_MAX_STEPS,
     ):
         del rtol
 
@@ -104,6 +105,7 @@ class JaxoptLBFGS(jaxopt.LBFGS):
         super().__init__(
             fun=_fun,
             tol=atol,
+            maxiter=max_steps,
         )
 
     def init(self, fn, y, args):
