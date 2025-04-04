@@ -144,14 +144,13 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         init_params,
         hyperparams_prox,
         *args,
-        options: Optional[dict[str, Any]] = None,
-        has_aux: bool = False,
-        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
-        adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
-        throw: bool = True,
-        tags: frozenset[object] = frozenset(),
+        options: dict[str, Any],
+        has_aux: bool,
+        max_steps: int,
+        adjoint: optx.AbstractAdjoint,
+        throw: bool,
+        tags: frozenset[object],
     ):
-        # del hyperparams_prox
         if options is None:
             options = {}
 
@@ -174,8 +173,8 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
         state,
         hyperparams_prox,
         *xy_args,
-        options: Optional[dict[str, Any]] = None,
-        tags: frozenset[object] = frozenset(),
+        options: dict[str, Any],
+        tags: frozenset[object],
     ):
         if options is None:
             options = {}

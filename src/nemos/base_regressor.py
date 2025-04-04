@@ -465,6 +465,8 @@ class BaseRegressor(Base, abc.ABC):
             "throw": False,
             # norm used in the Cauchy convergence criterion
             "norm": optx.two_norm,
+            "adjoint": optx.ImplicitAdjoint(),
+            "has_aux": False,
         }
         solver_kwargs = _optimistix_defaults | solver_kwargs
 

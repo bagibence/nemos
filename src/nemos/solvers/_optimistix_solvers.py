@@ -20,12 +20,12 @@ class OptimistixSolverMixin:
         self,
         init_params,
         *args,
-        options: Optional[dict[str, Any]] = None,
-        has_aux: bool = False,
-        max_steps: Optional[int] = DEFAULT_MAX_STEPS,
-        adjoint: optx.AbstractAdjoint = optx.ImplicitAdjoint(),
-        throw: bool = True,
-        tags: frozenset[object] = frozenset(),
+        options: dict[str, Any],
+        has_aux: bool,
+        max_steps: int,
+        adjoint: optx.AbstractAdjoint,
+        throw: bool,
+        tags: frozenset[object],
     ):
         # for signature of optimistix.minimise look in
         # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_minimise.py#L40
@@ -52,8 +52,8 @@ class OptimistixSolverMixin:
         params,
         state,
         *xy_args,
-        options: Optional[dict[str, Any]] = None,
-        tags: frozenset[object] = frozenset(),
+        options: dict[str, Any],
+        tags: frozenset[object],
     ):
         # for signature of solver.step look in
         # https://github.com/patrick-kidger/optimistix/blob/main/optimistix/_iterate.py#L76
