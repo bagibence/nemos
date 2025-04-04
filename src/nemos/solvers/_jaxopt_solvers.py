@@ -6,6 +6,11 @@ from ._optimistix_solvers import DEFAULT_RTOL, DEFAULT_ATOL, DEFAULT_MAX_STEPS
 
 
 class JaxoptProximalGradient(jaxopt.ProximalGradient):
+    """
+    jaxopt.ProximalGradient with its interface adapted to be compatible with
+    nemos's new solver instantiation
+    """
+
     def __init__(
         self,
         fun,
@@ -42,6 +47,11 @@ class JaxoptProximalGradient(jaxopt.ProximalGradient):
 
 
 class JaxoptGradientDescent(jaxopt.GradientDescent):
+    """
+    jaxopt.GradientDescent with its interface adapted to be compatible with
+    nemos's new solver instantiation
+    """
+
     def __init__(
         self,
         fun,
@@ -75,6 +85,11 @@ class JaxoptGradientDescent(jaxopt.GradientDescent):
 
 
 class JaxoptLBFGS(jaxopt.LBFGS):
+    """
+    jaxopt.LBFGS with its interface adapted to be compatible with
+    nemos's new solver instantiation
+    """
+
     def __init__(
         self,
         fun,

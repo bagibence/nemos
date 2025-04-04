@@ -21,6 +21,12 @@ class ScaleByLearningRateState(NamedTuple):
 def stateful_scale_by_learning_rate(
     stepsize: float, flip_sign: bool = True
 ) -> optax.GradientTransformation:
+    """
+    Reimplementation of optax.scale_by_learning_rate, just
+    storing the learning rate in the state.
+    Required for setting the scaling appropriately when used with
+    proximal gradient descent.
+    """
     m = -1 if flip_sign else 1
 
     def init_fn(params):
@@ -39,7 +45,12 @@ def stateful_scale_by_learning_rate(
 def _make_rate_scaler(
     stepsize: float | None,
     linesearch_kwargs: dict[str, Any] | None,
-):
+) -> optax.GradientTransformation:
+    """
+    Make an Optax transformation for setting the learning rate.
+    If `stepsize` is not None, use it as a constant learning rate.
+    If `stepsize` is None, create a zoom linesearch with `linesearch_kwargs`.
+    """
     if stepsize is None:
         if linesearch_kwargs is None:
             linesearch_kwargs = {

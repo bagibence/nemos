@@ -20,6 +20,11 @@ from optimistix._solution import RESULTS
 
 
 class ProximalGradient(GradientDescent):
+    """
+    Fully Optimistix-based proximal gradient implementation using
+    nemos._optimistix_solvers.GradientDescent
+    """
+
     fun: Callable
     fun_with_aux: Callable
     prox: Callable
@@ -56,36 +61,6 @@ class ProximalGradient(GradientDescent):
             linesearch_kwargs=linesearch_kwargs,
         )
 
-    #    def step(
-    #        self,
-    #        fn,
-    #        y,
-    #        args,
-    #        options,
-    #        state,
-    #        tags,
-    #    ):
-    #        new_params, new_state, new_aux = super().step(fn, y, args, options, state, tags)
-    #
-    #        new_params_eval = self.prox(
-    #            new_params,
-    #            options["regularizer_strength"],
-    #            self.get_learning_rate(new_state),
-    #        )
-    #
-    #        new_state = eqx.tree_at(lambda s: s.y_eval, new_state, new_params_eval)
-    #
-    #        # TODO return new_params or new_params_eval?
-    #
-    #        # might need something like this?
-    #        # new_params = jax.lax.cond(
-    #        #    eqx.tree_equal(new_params, new_state.y_eval),
-    #        #    lambda: new_params_eval,
-    #        #    lambda: new_state.y_eval,
-    #        # )
-    #
-    #        return new_params, new_state, new_aux
-    #
     def run(
         self,
         init_params,
@@ -184,3 +159,34 @@ class ProximalGradient(GradientDescent):
             result=result,
         )
         return y, state, aux
+
+    #    def step(
+    #        self,
+    #        fn,
+    #        y,
+    #        args,
+    #        options,
+    #        state,
+    #        tags,
+    #    ):
+    #        new_params, new_state, new_aux = super().step(fn, y, args, options, state, tags)
+    #
+    #        new_params_eval = self.prox(
+    #            new_params,
+    #            options["regularizer_strength"],
+    #            self.get_learning_rate(new_state),
+    #        )
+    #
+    #        new_state = eqx.tree_at(lambda s: s.y_eval, new_state, new_params_eval)
+    #
+    #        # TODO return new_params or new_params_eval?
+    #
+    #        # might need something like this?
+    #        # new_params = jax.lax.cond(
+    #        #    eqx.tree_equal(new_params, new_state.y_eval),
+    #        #    lambda: new_params_eval,
+    #        #    lambda: new_state.y_eval,
+    #        # )
+    #
+    #        return new_params, new_state, new_aux
+    #

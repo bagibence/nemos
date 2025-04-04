@@ -19,6 +19,12 @@ DEFAULT_MAX_STEPS = 100_000
 
 
 class OptimistixSolverMixin:
+    """
+    Inheriting from it provides Optimistix-based solvers with a .run and .update
+    methods so that nemos.BaseRegressor.instantiate_solver can inspect their signature
+    and create the solver methods used for optimization.
+    """
+
     def run(
         self,
         init_params,
@@ -115,6 +121,12 @@ class OptimistixSolverMixin:
 
 
 class BFGS(optx.BFGS, OptimistixSolverMixin):
+    """
+    optimistix.BFGS enhanced with .update and .run for use with nemos
+
+    Also stores the optimization's final stats in a `stats` attribute.
+    """
+
     fun: Callable
     fun_with_aux: Callable
 
@@ -138,6 +150,12 @@ class BFGS(optx.BFGS, OptimistixSolverMixin):
 
 
 class NonlinearCG(optx.NonlinearCG, OptimistixSolverMixin):
+    """
+    optimistix.NonlinearCG enhanced with .update and .run for use with nemos
+
+    Also stores the optimization's final stats in a `stats` attribute.
+    """
+
     fun: Callable
     fun_with_aux: Callable
 
@@ -163,6 +181,17 @@ class NonlinearCG(optx.NonlinearCG, OptimistixSolverMixin):
 
 
 class GradientDescent(optx.AbstractGradientDescent, OptimistixSolverMixin):
+    """
+    optimistix.GradientDescent enhanced with .update and .run for use with nemos
+
+    If `stepsize` is provided, it uses a fixed stepsize, otherwise uses linesearch,
+    which is currently set to MaxStepsBacktrackingArmijo which is a reimplementation
+    of optimistix.BacktrackingArmijo with a limit on the number of linesearch steps
+    per search direction.
+
+    Also stores the optimization's final stats in a `stats` attribute.
+    """
+
     fun: Callable
     fun_with_aux: Callable
 
@@ -214,7 +243,9 @@ class GradientDescent(optx.AbstractGradientDescent, OptimistixSolverMixin):
             self._stepsize = None
             self.search = MaxStepsBacktrackingArmijo(**linesearch_kwargs)
 
-    def get_learning_rate(self, state):
+    def get_learning_rate(
+        self, state: optx._solver.gradient_methods._GradientDescentState
+    ) -> float:
         if self._stepsize is None:
             return state.search_state.step_size
 

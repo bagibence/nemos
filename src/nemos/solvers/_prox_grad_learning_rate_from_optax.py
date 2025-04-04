@@ -17,6 +17,21 @@ from ._optax_based_solvers import _make_rate_scaler
 
 
 class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
+    """
+    ProximalGradient implementation combining Optax and Optimistix.
+
+    Uses Optax's SGD with Nesterov acceleration combined with Optax's
+    zoom linesearch or a constant learning rate.
+    Then uses the learning rate given by Optax to scale the proximal
+    operator's update and check for convergence using Optimistix's.
+
+    Works with the same proximal operator functions as JAXopt did.
+
+    Passes the regularizer strength (aka. `hyperparams_prox` following
+    the JAXopt naming) to .step through the `options` dict as
+    `options["regularizer_strength"]`.
+    """
+
     fun: Callable
     fun_with_aux: Callable
     prox: Callable
@@ -40,13 +55,13 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
 
         self.stats = {}
 
-        _optax_proxgrad = optax.chain(
+        _optax_gd = optax.chain(
             optax.sgd(learning_rate=1.0, nesterov=True),
             _make_rate_scaler(stepsize, linesearch_kwargs),
         )
 
         super().__init__(
-            optim=_optax_proxgrad,
+            optim=_optax_gd,
             rtol=rtol,
             atol=atol,
             norm=norm,
@@ -95,7 +110,9 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
 
         return new_params, new_state, new_aux
 
-    # THIS ONE WORKS, but it's a bit complicated
+    # THIS ONE WORKS
+    # it's a bit complicated
+    # but it doesn't calculate the convergence criteria twice
     # def step(
     #    self,
     #    fn,

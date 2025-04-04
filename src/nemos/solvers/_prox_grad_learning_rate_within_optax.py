@@ -10,7 +10,7 @@ from ._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
 from typing import Callable, Optional, Any
 from jaxtyping import PyTree, Scalar
 
-from ._prox_grad_learning_rate_from_optax import ScaleByLearningRateState
+from ._optax_based_solvers import ScaleByLearningRateState
 
 
 def prox_lasso(regularizer_strength: float):
@@ -121,6 +121,12 @@ def prox_none(regularizer_strength: float):
 def prox_chain(
     *args: optax.GradientTransformation,
 ) -> optax.GradientTransformationExtraArgs:
+    """
+    Modified implementation of optax.chain assuming that the last
+    transformation of the chain is the proximal operator transformation.
+    This last step gets the learning rate determined at the previous step
+    to scale the update appropriately.
+    """
     # transforms = [optax_base.with_extra_args_support(t) for t in args]
     transforms = args
     init_fns, update_fns = zip(*transforms)
