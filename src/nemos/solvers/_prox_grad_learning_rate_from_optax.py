@@ -53,7 +53,11 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
             verbose=verbose,
         )
 
-    def get_learning_rate(self, state):
+    def get_learning_rate(self, state) -> float:
+        """
+        Read out the learning rate for scaling within the proximal operator.
+        This learning rate is either a static learning rate or was found by a linesearch.
+        """
         return state.opt_state[-1].learning_rate
 
     def step(

@@ -19,7 +19,6 @@ from equinox.internal import ω
 from optimistix._solution import RESULTS
 
 
-# TODO Inherit from .optimistix_solvers.GradientDescent
 class ProximalGradient(GradientDescent):
     fun: Callable
     fun_with_aux: Callable
@@ -116,6 +115,7 @@ class ProximalGradient(GradientDescent):
             tags=tags,
         )
 
+    # This one copies the optimistix.GradientDescent.step and applies the proximal operator
     def step(
         self,
         fn,
