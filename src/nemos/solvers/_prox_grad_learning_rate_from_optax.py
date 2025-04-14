@@ -94,6 +94,9 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
             self.get_learning_rate(new_state),
         )
 
+        # reevaluate function value at the new point
+        new_state = eqx.tree_at(lambda s: s.f, new_state, fn(new_params, args)[0])
+
         # recheck convergence criteria with the projected point
         updates = tree_sub(new_params, y)
         terminate = optx._misc.cauchy_termination(
