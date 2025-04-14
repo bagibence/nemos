@@ -13,6 +13,9 @@ from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
 from ._optimistix_solvers import OptimistixSolverMixin, DEFAULT_MAX_STEPS
 
+# FIXME This might be solved in a simpler way using
+# https://optax.readthedocs.io/en/latest/getting_started.html#accessing-learning-rate
+
 
 class ScaleByLearningRateState(NamedTuple):
     learning_rate: Union[float, jax.Array]
@@ -118,7 +121,7 @@ class LBFGS(optx.OptaxMinimiser, OptimistixSolverMixin):
         fun: Callable,
         rtol: float,
         atol: float,
-        norm: Callable[[PyTree], Scalar] = optx.max_norm,
+        norm: Callable[[PyTree], Scalar],
         verbose: frozenset[str] = frozenset(),
         stepsize: Optional[optax.ScalarOrSchedule] = None,
         memory_size: int = 10,
@@ -126,7 +129,8 @@ class LBFGS(optx.OptaxMinimiser, OptimistixSolverMixin):
         linesearch: Optional[
             Union[optax.GradientTransformationExtraArgs, optax.GradientTransformation]
         ] = optax.scale_by_zoom_linesearch(
-            max_linesearch_steps=20, initial_guess_strategy="one"
+            max_linesearch_steps=20,
+            initial_guess_strategy="one",
         ),
     ):
         self.fun = fun
