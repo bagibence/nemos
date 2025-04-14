@@ -416,7 +416,12 @@ class BaseRegressor(Base, abc.ABC):
                 f"{self._regularizer.allowed_solvers}."
             )
 
-        _proximal_solvers = ("ProximalGradient", "ProxSVRG", "JaxoptProximalGradient")
+        _proximal_solvers = (
+            "ProximalGradient",
+            "ProxSVRG",
+            "JaxoptProximalGradient",
+            "OptaxProximalGradient",
+        )
 
         # optimistix functions (e.g. solver.step and optx.minimise) take data as a tuple, and I adapted SVRG to behave the same
         # but nemos usually separates them to X, y
@@ -474,8 +479,8 @@ class BaseRegressor(Base, abc.ABC):
         _all_solver_args = self._get_all_solver_args(solver_class)
 
         # NOTE this is here for the Optax-based solver that needs this upon initialization
-        if "regularizer_strength" in _all_solver_args:
-            solver_kwargs["regularizer_strength"] = self.regularizer_strength
+        # if "regularizer_strength" in _all_solver_args:
+        #    solver_kwargs["regularizer_strength"] = self.regularizer_strength
 
         solver_kwargs = self._handle_tolerances(solver_kwargs, _all_solver_args)
 

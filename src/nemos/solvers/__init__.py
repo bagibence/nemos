@@ -29,3 +29,8 @@ from ._jaxopt_solvers import (
     JaxoptBFGS,
 )
 
+from ._jaxopt_optax_solvers import JaxoptOptaxLBFGS
+
+from ._optax_lbfgs import OptaxLBFGS
+
+from ._optax_prox_grad import OptaxProximalGradient
