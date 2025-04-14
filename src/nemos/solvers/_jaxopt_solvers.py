@@ -96,6 +96,43 @@ class JaxoptLBFGS(jaxopt.LBFGS):
         atol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
         max_steps: int = DEFAULT_MAX_STEPS,
+        stepsize: float = -1.0,
+        verbose: bool = False,
+        jit: bool = True,
+    ):
+        del rtol
+
+        def _fun(params, *args):
+            return fun(params, args)
+
+        super().__init__(
+            fun=_fun,
+            tol=atol,
+            maxiter=max_steps,
+            stepsize=stepsize,
+            verbose=verbose,
+            jit=jit,
+        )
+
+    def init(self, fn, y, args):
+        del fn
+        return self.init_state(y, *args)
+
+    def terminate(self):
+        pass
+
+    @property
+    def max_steps(self):
+        return self.maxiter
+
+
+class JaxoptBFGS(jaxopt.BFGS):
+    def __init__(
+        self,
+        fun,
+        atol: float = DEFAULT_ATOL,
+        rtol: float = DEFAULT_RTOL,
+        max_steps: int = DEFAULT_MAX_STEPS,
     ):
         del rtol
 
@@ -118,10 +155,6 @@ class JaxoptLBFGS(jaxopt.LBFGS):
     @property
     def max_steps(self):
         return self.maxiter
-
-
-class JaxoptBFGS(jaxopt.BFGS):
-    pass
 
 
 class JaxoptNonlinearCG(jaxopt.NonlinearCG):

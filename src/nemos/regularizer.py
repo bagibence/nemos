@@ -115,6 +115,11 @@ class UnRegularized(Regularizer):
         "JaxoptGradientDescent",
         "JaxoptProximalGradient",
         "JaxoptLBFGS",
+        "JaxoptBFGS",
+        "OptimistixLBFGS",
+        "JaxoptOptaxLBFGS",
+        "OptaxLBFGS",
+        "OptaxProximalGradient",
     )
 
     _default_solver = "GradientDescent"
@@ -164,6 +169,11 @@ class Ridge(Regularizer):
         "JaxoptGradientDescent",
         "JaxoptProximalGradient",
         "JaxoptLBFGS",
+        "JaxoptBFGS",
+        "OptimistixLBFGS",
+        "JaxoptOptaxLBFGS",
+        "OptaxLBFGS",
+        "OptaxProximalGradient",
     )
 
     _default_solver = "GradientDescent"
@@ -247,6 +257,7 @@ class Lasso(Regularizer):
         "ProximalGradient",
         "ProxSVRG",
         "JaxoptProximalGradient",
+        "OptaxProximalGradient",
     )
 
     _default_solver = "ProximalGradient"
@@ -360,6 +371,7 @@ class GroupLasso(Regularizer):
         "ProximalGradient",
         "ProxSVRG",
         "JaxoptProximalGradient",
+        "OptaxProximalGradient",
     )
 
     _default_solver = "ProximalGradient"
