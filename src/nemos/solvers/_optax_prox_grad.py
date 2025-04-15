@@ -4,11 +4,11 @@ from typing import Callable, Optional, Any, NamedTuple
 import jax
 import jax.numpy as jnp
 import optax
-import optax.tree_utils as otu
 import optimistix as optx
 
 from ._optimistix_solvers import DEFAULT_MAX_STEPS, DEFAULT_ATOL, DEFAULT_RTOL
 from ._optax_based_solvers import _make_rate_scaler
+from ._termination_criteria import cauchy_termination
 
 from jaxtyping import Bool, Scalar, Int, Float, PyTree
 
@@ -115,7 +115,7 @@ class OptaxProximalGradient:
 
             # update the monitoring values
             # step count is done in the update step
-            y_converged, f_converged = OptaxProximalGradient.cauchy_termination(
+            y_converged, f_converged = cauchy_termination(
                 self.rtol,
                 self.atol,
                 new_params,
@@ -155,34 +155,3 @@ class OptaxProximalGradient:
         )
 
         return final_params, final_state
-
-    @staticmethod
-    def cauchy_termination(
-        rtol: float,
-        atol: float,
-        y,
-        y_prev,
-        f,
-        f_prev,
-        norm,
-    ):
-        y_scale = jax.tree.map(
-            lambda x: atol + x,
-            otu.tree_scale(rtol, jax.tree.map(jnp.abs, y_prev)),
-        )
-        f_scale = jax.tree.map(
-            lambda x: atol + x,
-            otu.tree_scale(rtol, jax.tree.map(jnp.abs, f_prev)),
-        )
-        # f_scale = atol + rtol * jnp.abs(f)
-
-        y_diff = jax.tree.map(jnp.abs, otu.tree_sub(y, y_prev))
-        f_diff = jax.tree.map(jnp.abs, otu.tree_sub(f, f_prev))
-        # f_diff = jnp.abs(f - f_prev)
-
-        y_converged = norm(jax.tree.map(lambda a, b: a / b, y_diff, y_scale)) < 1
-        f_converged = norm(jax.tree.map(lambda a, b: a / b, f_diff, f_scale)) < 1
-        # f_converged = norm(f_diff / f_scale) < 1
-
-        # return y_converged & f_converged
-        return y_converged, f_converged
