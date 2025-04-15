@@ -52,8 +52,8 @@ class OptaxProximalGradient:
         linesearch_kwargs: Optional[dict[str, Any]] = None,
         norm: Callable[[PyTree], Scalar] = optx.max_norm,
     ):
-        # might have to adapt the signature
         self.fun = fun
+        self.prox = prox
 
         # might try the eqx.closure_to_pytree
         self.opt = optax.chain(
@@ -61,8 +61,6 @@ class OptaxProximalGradient:
             optax.sgd(learning_rate=1.0, nesterov=True),
             _make_rate_scaler(stepsize, linesearch_kwargs),
         )
-
-        self.prox = prox
 
         self.max_steps = max_steps
         self.atol = atol
@@ -84,14 +82,12 @@ class OptaxProximalGradient:
         def _fn(_params):
             return self.fun(_params, args)
 
-        # value_and_grad_fun = optax.value_and_grad_from_state(_fn)
         value_and_grad_fun = jax.jit(jax.value_and_grad(_fn))
 
         def step(carry):
             params, state = carry
 
             # take gradient step with optax's sgd with nesterov and linesearch
-            # value, grad = value_and_grad_fun(params, state=state)
             value, grad = value_and_grad_fun(params)
             updates, new_state = self.opt.update(
                 grad,
@@ -120,8 +116,8 @@ class OptaxProximalGradient:
             # update the monitoring values
             # step count is done in the update step
             y_converged, f_converged = OptaxProximalGradient.cauchy_termination(
-                self.atol,
                 self.rtol,
+                self.atol,
                 new_params,
                 params,
                 new_f_value,
@@ -172,11 +168,11 @@ class OptaxProximalGradient:
     ):
         y_scale = jax.tree.map(
             lambda x: atol + x,
-            otu.tree_scale(rtol, jax.tree.map(jnp.abs, y)),
+            otu.tree_scale(rtol, jax.tree.map(jnp.abs, y_prev)),
         )
         f_scale = jax.tree.map(
             lambda x: atol + x,
-            otu.tree_scale(rtol, jax.tree.map(jnp.abs, f)),
+            otu.tree_scale(rtol, jax.tree.map(jnp.abs, f_prev)),
         )
         # f_scale = atol + rtol * jnp.abs(f)
 
