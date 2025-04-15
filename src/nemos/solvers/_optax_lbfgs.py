@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional, Union
 
 
 import jax
@@ -9,17 +9,40 @@ from ._optimistix_solvers import DEFAULT_MAX_STEPS, DEFAULT_ATOL, DEFAULT_RTOL
 
 
 class OptaxLBFGS:
+    """
+    L-BFGS implementation using only optax.lbfgs and a jax.lax.scan adapted from
+    the Optax documentation.
+
+    Convergence criterion is the same as in JAXopt: l2_norm(grad) <= abs_tol.
+
+    Parameters default to the same as in optax.lbfgs.
+    """
+
     def __init__(
         self,
         fun: Callable,
         max_steps: int = DEFAULT_MAX_STEPS,
         tol: float = DEFAULT_ATOL,
+        stepsize: Optional[optax.ScalarOrSchedule] = None,
+        memory_size: int = 10,
+        scale_init_precond: bool = True,
+        linesearch: Optional[
+            Union[optax.GradientTransformationExtraArgs, optax.GradientTransformation]
+        ] = optax.scale_by_zoom_linesearch(
+            max_linesearch_steps=20,
+            initial_guess_strategy="one",
+        ),
     ):
         # might have to adapt the signature
         self.fun = fun
 
         # might try the eqx.closure_to_pytree
-        self.opt = optax.lbfgs()
+        self.opt = optax.lbfgs(
+            learning_rate=stepsize,
+            memory_size=memory_size,
+            scale_init_precond=scale_init_precond,
+            linesearch=linesearch,
+        )
 
         self.max_steps = max_steps
         # self.atol = atol

@@ -8,9 +8,12 @@ from ._optimistix_solvers import DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_MAX_STEPS
 
 class JaxoptOptaxLBFGS(jaxopt.OptaxSolver):
     """
-    Use Optax solvers with JAXopt's wrapper.
-
+    L-BFGS implementation using optax.lbfgs wrapped by JAXopt's.
     Useful for comparison with Optimistix's wrapper.
+
+    Convergence criterion is implemented by JAXopt.
+
+    Parameters default to the same as in optax.lbfgs.
     """
 
     def __init__(

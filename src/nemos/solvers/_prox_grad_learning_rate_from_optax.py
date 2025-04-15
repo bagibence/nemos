@@ -99,6 +99,7 @@ class ProximalGradient(optx.OptaxMinimiser, OptimistixSolverMixin):
 
         # recheck convergence criteria with the projected point
         updates = tree_sub(new_params, y)
+        # TODO use .termination_criteria.cauchy_termination?
         terminate = optx._misc.cauchy_termination(
             self.rtol,
             self.atol,

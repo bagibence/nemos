@@ -41,6 +41,21 @@ def step_counter():
 
 
 class OptaxProximalGradient:
+    """
+    ProximalGradient implementation using Optax only.
+
+    Uses Optax's SGD with Nesterov acceleration combined with Optax's
+    zoom linesearch or a constant learning rate.
+    Then uses the learning rate given by Optax to scale the proximal
+    operator's update.
+    Checks for convergence using the Cauchy
+    termination criteria borrowed from Optimistix.
+
+    Running a whole optimization is implemented by a jax.lax.scan loop.
+
+    Works with the same proximal operator functions as JAXopt did.
+    """
+
     def __init__(
         self,
         fun: Callable,
