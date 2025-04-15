@@ -43,6 +43,8 @@ class SVRGState(NamedTuple):
         Corresponds to $x_{s}$ in the pseudocode[$^{[1]}$](#references).
     full_grad_at_reference_point :
         Full gradient at the anchor/reference point.
+    converged :
+        Whether converge criteria has been satisfied.
 
     # References
     ------------
@@ -57,8 +59,7 @@ class SVRGState(NamedTuple):
     stepsize: float
     reference_point: Optional[Pytree] = None
     full_grad_at_reference_point: Optional[Pytree] = None
-    y_converged: bool = False
-    f_converged: bool = False
+    converged: bool = False
 
 
 class ProxSVRG:
@@ -72,9 +73,9 @@ class ProxSVRG:
 
     Attributes
     ----------
-    fun: Callable
+    fun : Callable
         Smooth function of the form ``fun(x, *args, **kwargs)``.
-    prox: Callable
+    prox : Callable
         Proximal operator associated with the function ``non_smooth``.
         It should be of the form ``prox(params, hyperparams_prox, scale=1.0)``.
         See ``jaxopt.prox`` for examples.
@@ -84,11 +85,22 @@ class ProxSVRG:
         jax PRNGKey to start with. Used for sampling random data points.
     stepsize : float
         Constant step size to use.
-    tol: float
+    tol : float
         Tolerance level for the error when comparing parameters
         at the end of consecutive epochs to check for convergence.
-    batch_size: int
+    batch_size : int
         Number of data points to sample per inner loop iteration.
+    termination_criteria : str
+        Termination criteria to use.
+        Possible values:
+            - 'cauchy': Cauchy termination critera. Takes the difference in
+            function and parameter values into account. Uses rtol and atol.
+            Matches Optimistix.
+            - 'update_norm': Based on the parameter update's norm, scaled by
+            the stepsize. Matches JAXopt.
+    norm : Callable
+        Norm to ue in the convergence criteria.
+        Default is L2.
 
     Examples
     --------
@@ -126,7 +138,8 @@ class ProxSVRG:
         atol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
         batch_size: int = 1,
-        norm: Callable = max_norm,
+        termination_criteria: str = "update_norm",
+        norm: Callable = two_norm,
     ):
         self.fun = jit(fun)
         self.max_steps = max_steps
@@ -138,6 +151,16 @@ class ProxSVRG:
         self.loss_gradient = jit(grad(self.fun))
         self.batch_size = batch_size
         self.proximal_operator = prox
+
+        match termination_criteria:
+            case "cauchy":
+                self.termination_crit = self.cauchy_termination
+            case "update_norm":
+                self.termination_crit = self.update_norm_termination
+            case _:
+                raise ValueError(
+                    "termination_criteria has to be either 'cauchy' or 'update_norm'"
+                )
 
     def init_state(
         self,
@@ -175,8 +198,7 @@ class ProxSVRG:
             stepsize=self.stepsize,
             reference_point=init_params,
             full_grad_at_reference_point=None,
-            y_converged=False,
-            f_converged=False,
+            converged=False,
         )
         return state
 
@@ -472,25 +494,16 @@ class ProxSVRG:
             # note that the average is currently not implemented
             reference_point = params
 
-            y_converged, f_converged = self.cauchy_termination(
-                # self.atol,
-                # self.rtol,
-                self.rtol,
-                self.atol * state.stepsize,
+            converged = self.termination_crit(
                 reference_point,
                 prev_reference_point,
-                self.fun(reference_point, args),
-                self.fun(prev_reference_point, args),
-                self.norm,
+                args,
+                state.stepsize,
             )
 
             state = state._replace(
                 reference_point=reference_point,
-                # error=self._error(
-                #    reference_point, prev_reference_point, state.stepsize
-                # ),
-                y_converged=y_converged,
-                f_converged=f_converged,
+                converged=converged,
             )
 
             return OptStep(params=reference_point, state=state)
@@ -499,11 +512,12 @@ class ProxSVRG:
         def cond_fun(step):
             _, state = step
             # return (state.iter_num <= self.max_steps) & (state.error >= self.atol)
-            return (
-                (state.iter_num <= self.max_steps)
-                & ~state.y_converged
-                & ~state.f_converged
-            )
+            # return (
+            #    (state.iter_num <= self.max_steps)
+            #    & ~state.y_converged
+            #    & ~state.f_converged
+            # )
+            return (state.iter_num <= self.max_steps) & ~state.converged
 
         # initialize the full gradient at the anchor point
         # the anchor point is init_params at first
@@ -609,8 +623,8 @@ class ProxSVRG:
 
         return OptStep(params=next_params, state=state)
 
-    @staticmethod
-    def _error(x, x_prev, stepsize):
+    @partial(jit, static_argnums=(0,))
+    def update_norm_termination(self, x, x_prev, args, stepsize):
         """
         Calculate the magnitude of the update relative to the stepsize.
         Used for terminating the algorithm if a certain tolerance is reached.
@@ -626,38 +640,37 @@ class ProxSVRG:
         -------
         Scaled update magnitude.
         """
-        return tree_l2_norm(tree_sub(x, x_prev)) / stepsize
+        del args
+        # error = tree_l2_norm(tree_sub(x, x_prev)) / stepsize
+        error = self.norm(tree_sub(x, x_prev)) / stepsize
+        return error < self.atol
 
-    @staticmethod
-    def cauchy_termination(
-        rtol: float,
-        atol: float,
-        y,
-        y_prev,
-        f,
-        f_prev,
-        norm,
-    ):
-        y_scale = jax.tree.map(
-            lambda x: atol + x,
-            tree_scalar_mul(rtol, jax.tree.map(jnp.abs, y)),
-        )
-        f_scale = jax.tree.map(
-            lambda x: atol + x,
-            tree_scalar_mul(rtol, jax.tree.map(jnp.abs, f)),
-        )
-        # f_scale = atol + rtol * jnp.abs(f)
+    @partial(jit, static_argnums=(0,))
+    def cauchy_termination(self, y, y_prev, args, stepsize):
+        # rtol = self.rtol
+        # atol = self.atol
 
+        rtol = self.rtol
+        atol = self.atol * stepsize
+
+        f = self.fun(y, args)
+        f_prev = self.fun(y_prev, args)
+
+        # x_scale = atol + rtol * jnp.abs(x)
+        y_abs_scaled = tree_scalar_mul(rtol, jax.tree.map(jnp.abs, y))
+        f_abs_scaled = tree_scalar_mul(rtol, jax.tree.map(jnp.abs, f))
+        y_scale = jax.tree.map(lambda x: atol + x, y_abs_scaled)
+        f_scale = jax.tree.map(lambda x: atol + x, f_abs_scaled)
+
+        # diff = jnp.abs(x - x_prev)
         y_diff = jax.tree.map(jnp.abs, tree_sub(y, y_prev))
         f_diff = jax.tree.map(jnp.abs, tree_sub(f, f_prev))
-        # f_diff = jnp.abs(f - f_prev)
 
-        y_converged = norm(jax.tree.map(lambda a, b: a / b, y_diff, y_scale)) < 1
-        f_converged = norm(jax.tree.map(lambda a, b: a / b, f_diff, f_scale)) < 1
-        # f_converged = norm(f_diff / f_scale) < 1
+        # x_converged = norm(x_diff / x_scale) < 1
+        y_converged = self.norm(jax.tree.map(lambda a, b: a / b, y_diff, y_scale)) < 1
+        f_converged = self.norm(jax.tree.map(lambda a, b: a / b, f_diff, f_scale)) < 1
 
-        # return y_converged & f_converged
-        return y_converged, f_converged
+        return y_converged & f_converged
 
     # trying to make a common interface with optimistix
     def init(self, fn, y, args):
