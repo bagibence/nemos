@@ -59,6 +59,7 @@ class JaxoptGradientDescent(jaxopt.GradientDescent):
         stepsize: float = -1.0,
         atol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
+        verbose: bool = False,
     ):
         del rtol
 
@@ -70,6 +71,7 @@ class JaxoptGradientDescent(jaxopt.GradientDescent):
             maxiter=max_steps,
             stepsize=stepsize,
             tol=atol,
+            verbose=verbose,
         )
 
     def init(self, fn, y, args):
@@ -97,7 +99,11 @@ class JaxoptLBFGS(jaxopt.LBFGS):
         rtol: float = DEFAULT_RTOL,
         max_steps: int = DEFAULT_MAX_STEPS,
         stepsize: float = -1.0,
+        history_size: int = 10,
+        linesearch: str = "zoom",
+        maxls: int = 30,
         verbose: bool = False,
+        unroll: bool = "auto",
         jit: bool = True,
     ):
         del rtol
@@ -110,7 +116,11 @@ class JaxoptLBFGS(jaxopt.LBFGS):
             tol=atol,
             maxiter=max_steps,
             stepsize=stepsize,
+            history_size=history_size,
+            linesearch=linesearch,
+            maxls=maxls,
             verbose=verbose,
+            unroll=unroll,
             jit=jit,
         )
 
