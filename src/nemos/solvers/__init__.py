@@ -11,7 +11,7 @@ from ._optimistix_solvers import (
     BFGS,
     NonlinearCG,
     # GradientDescent,
-    OptimistixLBFGS,
+    # OptimistixLBFGS,
 )
 # from ._optimistix_prox_grad import ProximalGradient
 
