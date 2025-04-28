@@ -438,6 +438,7 @@ class GLM(BaseRegressor):
             The model negative log-likehood. Shape (1,).
 
         """
+        # jax.debug.print("loss eval")
         predicted_rate = self._predict(params, X)
         return self._observation_model._negative_log_likelihood(y, predicted_rate)
 
@@ -1000,10 +1001,15 @@ class GLM(BaseRegressor):
         >>> opt_state = model.initialize_state(X, y, params)
         >>> # Now ready to run optimization or update steps
         """
-        if isinstance(X, FeaturePytree):
-            data = X.data
-        else:
-            data = X
+        # find non-nans
+        is_valid = tree_utils.get_valid_multitree(X, y)
+
+        # drop nans
+        X = jax.tree_util.tree_map(lambda x: x[is_valid], X)
+        y = jax.tree_util.tree_map(lambda x: x[is_valid], y)
+
+        # grab the data
+        data = X.data if isinstance(X, FeaturePytree) else X
 
         # check if mask has been set is using group lasso
         # if mask has not been set, use a single group as default
@@ -1466,7 +1472,6 @@ class PopulationGLM(GLM):
         self._check_mask(X, y, params)
 
     def _check_mask(self, X, y, params):
-
         if isinstance(X, FeaturePytree):
             data = X.data
         else:
