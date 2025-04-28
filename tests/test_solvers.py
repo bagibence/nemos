@@ -8,6 +8,7 @@ import pytest
 import nemos as nmo
 from nemos.solvers._svrg import SVRG, ProxSVRG, SVRGState
 from nemos.solvers import JaxoptProximalGradient
+from nemos.solvers._optax_prox_grad import OptaxProximalGradient
 from nemos.tree_utils import pytree_map_and_reduce, tree_l2_norm, tree_slice, tree_sub
 
 from nemos.proximal_operator import prox_lasso
@@ -388,6 +389,9 @@ def test_svrg_glm_fit(
     if isinstance(solver, (ProxSVRG, SVRG, JaxoptProximalGradient)):
         assert solver.max_steps == max_steps
         assert glm.solver_state_.iter_num == max_steps
+    elif isinstance(solver, OptaxProximalGradient):
+        assert solver.max_steps == max_steps
+        assert glm.solver_state_[0].iter_num == max_steps
     else:
         assert solver.stats["max_steps"] == max_steps
         assert solver.stats["num_steps"] == max_steps
