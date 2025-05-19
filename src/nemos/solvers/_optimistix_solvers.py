@@ -11,7 +11,6 @@ from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
 from ._optimistix_linesearch_with_max_steps import MaxStepsBacktrackingArmijo
 
-
 DEFAULT_ATOL = 1e-8
 DEFAULT_RTOL = 0.0
 
@@ -251,3 +250,38 @@ class GradientDescent(optx.AbstractGradientDescent, OptimistixSolverMixin):
 
         # return self.search.learning_rate
         return self._stepsize
+
+
+class OptimistixLBFGS(optx.LBFGS, OptimistixSolverMixin):
+    """
+    optimistix.LBFGS enhanced with .update and .run for use with nemos
+
+    Also stores the optimization's final stats in a `stats` attribute.
+    """
+
+    fun: Callable
+    fun_with_aux: Callable
+
+    stats: dict[str, PyTree[ArrayLike]]
+
+    def __init__(
+        self,
+        fun: Callable,
+        rtol: float,
+        atol: float,
+        norm: Callable[[PyTree], Scalar] = optx.max_norm,
+        verbose: frozenset[str] = frozenset(),
+        # search: optx.AbstractSearch = optx.BacktrackingArmijo(),
+    ):
+        self.fun = fun
+        self.fun_with_aux = lambda params, args: (fun(params, args), None)
+
+        self.stats = {}
+
+        super().__init__(
+            rtol=rtol,
+            atol=atol,
+            norm=norm,
+            verbose=verbose,
+            # search=search,
+        )

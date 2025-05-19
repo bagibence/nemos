@@ -121,6 +121,7 @@ class UnRegularized(Regularizer):
         "OptaxLBFGS",
         "OptaxLBFGSScan",
         "OptaxProximalGradient",
+        "OptimistixLBFGS",
     )
 
     _default_solver = "GradientDescent"
@@ -176,6 +177,7 @@ class Ridge(Regularizer):
         "OptaxLBFGS",
         "OptaxLBFGSScan",
         "OptaxProximalGradient",
+        "OptimistixLBFGS",
     )
 
     _default_solver = "GradientDescent"
