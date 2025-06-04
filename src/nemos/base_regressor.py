@@ -454,12 +454,13 @@ class BaseRegressor(Base, abc.ABC):
             solver_kwargs.update(prox=self.regularizer.get_proximal_operator())
             args += (self.regularizer_strength,)
 
+        _float_dtype = jnp.float64 if jax.config.jax_enable_x64 else jnp.float32
         # set defaults for common arguments required by optimistix solvers
         _optimistix_defaults = {
             # options dict passed around within optimistix. e.g. ProximalGradient uses it to pass regularizer_strength
             "options": {},
             # "The shape+dtype of the output of `fn`"
-            "f_struct": jax.ShapeDtypeStruct((), jnp.float32),
+            "f_struct": jax.ShapeDtypeStruct((), _float_dtype),
             # this would be the output shape + dtype of the aux variables fn returns
             "aux_struct": None,
             # "Any Lineax tags describing the structure of the Jacobian matrix d(fn)/dy."
