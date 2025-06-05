@@ -1,3 +1,4 @@
+from functools import partial
 from collections.abc import Callable
 from jaxtyping import PyTree, Scalar, ArrayLike
 from typing import Optional, Union, Any, cast
@@ -6,6 +7,7 @@ import optimistix as optx
 import optax
 
 import jax
+import jax.numpy as jnp
 import equinox as eqx
 from optimistix._custom_types import Aux, Fn, Out, SolverState, Y
 
@@ -136,16 +138,24 @@ class BFGS(optx.BFGS, OptimistixSolverMixin):
         fun: Callable,
         rtol: float,
         atol: float,
-        norm: Callable[[PyTree], Scalar] = optx.max_norm,
+        norm: Callable[[PyTree], Scalar],
         use_inverse: bool = True,
         verbose: frozenset[str] = frozenset(),
+        search: optx.AbstractSearch = optx.Zoom(),
     ):
         self.fun = fun
         self.fun_with_aux = lambda params, args: (fun(params, args), None)
 
         self.stats = {}
 
-        super().__init__(rtol, atol, norm, use_inverse, verbose)
+        super().__init__(
+            rtol=rtol,
+            atol=atol,
+            norm=norm,
+            use_inverse=use_inverse,
+            verbose=verbose,
+            search=search,
+        )
 
 
 class NonlinearCG(optx.NonlinearCG, OptimistixSolverMixin):
@@ -269,9 +279,10 @@ class OptimistixLBFGS(optx.LBFGS, OptimistixSolverMixin):
         fun: Callable,
         rtol: float,
         atol: float,
-        norm: Callable[[PyTree], Scalar] = optx.max_norm,
+        norm: Callable[[PyTree], Scalar],
         verbose: frozenset[str] = frozenset(),
-        # search: optx.AbstractSearch = optx.BacktrackingArmijo(),
+        search: optx.AbstractSearch = optx.Zoom(),
+        use_inverse: bool = True,
     ):
         self.fun = fun
         self.fun_with_aux = lambda params, args: (fun(params, args), None)
@@ -283,5 +294,6 @@ class OptimistixLBFGS(optx.LBFGS, OptimistixSolverMixin):
             atol=atol,
             norm=norm,
             verbose=verbose,
-            # search=search,
+            search=search,
+            use_inverse=use_inverse,
         )
