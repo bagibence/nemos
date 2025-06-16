@@ -32,6 +32,7 @@ class OptaxLBFGS:
         ] = optax.scale_by_zoom_linesearch(
             max_linesearch_steps=20,
             initial_guess_strategy="one",
+            increase_factor=2.0,
         ),
     ):
         # might have to adapt the signature

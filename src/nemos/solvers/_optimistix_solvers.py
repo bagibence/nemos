@@ -281,7 +281,9 @@ class OptimistixLBFGS(optx.LBFGS, OptimistixSolverMixin):
         atol: float,
         norm: Callable[[PyTree], Scalar],
         verbose: frozenset[str] = frozenset(),
-        search: optx.AbstractSearch = optx.Zoom(),
+        search: optx.AbstractSearch = optx.Zoom(
+            initial_guess_strategy="one", maxls=20, increase_factor=2.0
+        ),
         use_inverse: bool = True,
     ):
         self.fun = fun
