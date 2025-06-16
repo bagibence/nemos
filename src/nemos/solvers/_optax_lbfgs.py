@@ -1,4 +1,5 @@
 from typing import Callable, Optional, Union
+from jaxtyping import PyTree
 from functools import partial
 
 
@@ -11,12 +12,10 @@ from ._optimistix_solvers import DEFAULT_MAX_STEPS, DEFAULT_ATOL, DEFAULT_RTOL
 
 class OptaxLBFGS:
     """
-    L-BFGS implementation using only optax.lbfgs and a jax.lax.scan adapted from
+    L-BFGS implementation using only optax.lbfgs and a jax.while_loop adapted from
     the Optax documentation.
 
     Convergence criterion is the same as in JAXopt: l2_norm(grad) <= abs_tol.
-
-    Parameters default to the same as in optax.lbfgs.
     """
 
     def __init__(
@@ -35,6 +34,26 @@ class OptaxLBFGS:
             increase_factor=2.0,
         ),
     ):
+        """
+        fun :
+            Objective function.
+        max_steps :
+            Maximum number of optimization steps to take.
+        tol :
+            Absolute tolerance for the convergence criterion.
+        stepsize :
+            "optional global scaling factor" passed to `optax.lbfgs`.
+            Default is None.
+        memory_size :
+            Memory or history size in the L-BFGS algorithm.
+        scale_init_precond :
+            "whether to use a scaled identity as the initial preconditioner"
+            Always done in Optimistix, same as `use_gamma` in JAXopt (with a slightly modified formula).
+        linesearch :
+            Linesearch to use in the optimization.
+            Needs to have `store_grad=True` set.
+            Default is zoom linesearch.
+        """
         # might have to adapt the signature
         self.fun = jax.jit(fun)
 
@@ -53,10 +72,24 @@ class OptaxLBFGS:
         # self.rtol = rtol
         self.tol = tol
 
-    def init(self, fn, y, args, options, tags):
+    # optax.ScaleByLBFGSState would be more precise but the checker is complaining
+    def init(self, fn, y, args, options, tags) -> optax.OptState:
+        """
+        Initialize the optimizer state.
+
+        y :
+            Initial parameters.
+
+        Rest of the arguments are included for consistency with Optimistix-based solvers.
+        """
         return self.opt.init(y)
 
-    def update(self, params, state, *xy_args):
+    def update(self, params, state, *xy_args) -> tuple[PyTree, optax.OptState]:
+        """
+        Perform a single step of the optimization.
+        For running a whole optimization, see :meth:`run`.
+        """
+
         def _fn(params):
             return self.fun(params, xy_args)
 
@@ -68,39 +101,50 @@ class OptaxLBFGS:
 
         return params, state
 
-    def terminate(self):
+    def terminate(self) -> None:
+        """
+        Defined for consistency with Optimistix-based solvers.
+        """
         pass
 
-    def run(self, init_params, *args):
+    def run(self, init_params, *args) -> tuple[PyTree, optax.OptState]:
+        """
+        Run a full optimization loop until convergence or until the max number of steps is reached.
+
+        Convergence criterion is based on the gradient norm, consistent with JAXopt.
+
+        Uses :meth:`_run` if the optimizer has a linesearch, :meth:`_run_without_store_grad` is used if it doesn't.
+        """
         if self.has_linesearch:
             return self._run(init_params, *args)
         else:
             return self._run_without_store_grad(init_params, *args)
 
     @partial(jax.jit, static_argnums=0)
-    def _run(self, init_params, *args):
+    def _run(self, init_params, *args) -> tuple[PyTree, optax.OptState]:
+        """
+        Run a full optimization loop.
+
+        Called if the optimizer has a linesearch, otherwise :meth:`_run_without_store_grad` is used.
+
+        The function value and gradient are stored in the linesearch state to save some computation.
+        For background:
+        - https://optax.readthedocs.io/en/stable/_collections/examples/lbfgs.html#linesearches-in-practice
+        - https://optax.readthedocs.io/en/stable/api/utilities.html#optax.value_and_grad_from_state
+        """
+
         def _fn(params):
             return self.fun(params, args)
 
         value_and_grad_fun = jax.jit(optax.value_and_grad_from_state(_fn))
-        # value_and_grad_fun = jax.jit(jax.value_and_grad(_fn))
 
         def step(carry):
             params, state = carry
             value, grad = value_and_grad_fun(params, state=state)
-            # value, grad = value_and_grad_fun(params)
             updates, state = self.opt.update(
                 grad, state, params, value=value, grad=grad, value_fn=_fn
             )
             params = optax.apply_updates(params, updates)
-
-            # jax.debug.print(
-            #    "iter:{iter_num} n_linesearch_steps:{n_linesearch_steps} learning_rate:{learning_rate} value:{value}",
-            #    iter_num=state[0].count,
-            #    n_linesearch_steps=state[-1].info.num_linesearch_steps,
-            #    learning_rate=state[-1].learning_rate,
-            #    value=state[-1].value,
-            # )
 
             return params, state
 
@@ -119,29 +163,26 @@ class OptaxLBFGS:
         return final_params, final_state
 
     @partial(jax.jit, static_argnums=0)
-    def _run_without_store_grad(self, init_params, *args):
+    def _run_without_store_grad(
+        self, init_params, *args
+    ) -> tuple[PyTree, optax.OptState]:
+        """
+        Same as :meth:`_run`, but without reading the value and gradient from the search state.
+        Called when the optimizer does not have a linesearch.
+        """
+
         def _fn(params):
             return self.fun(params, args)
 
-        # value_and_grad_fun = jax.jit(optax.value_and_grad_from_state(_fn))
         value_and_grad_fun = jax.jit(jax.value_and_grad(_fn))
 
         def step(carry):
             params, state = carry
-            # value, grad = value_and_grad_fun(params, state=state)
             value, grad = value_and_grad_fun(params)
             updates, state = self.opt.update(
                 grad, state, params, value=value, grad=grad, value_fn=_fn
             )
             params = optax.apply_updates(params, updates)
-
-            # jax.debug.print(
-            #    "iter:{iter_num} n_linesearch_steps:{n_linesearch_steps} learning_rate:{learning_rate} value:{value}",
-            #    iter_num=state[0].count,
-            #    n_linesearch_steps=state[-1].info.num_linesearch_steps,
-            #    learning_rate=state[-1].learning_rate,
-            #    value=state[-1].value,
-            # )
 
             return params, state
 
