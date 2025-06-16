@@ -119,7 +119,6 @@ class UnRegularized(Regularizer):
         "OptimistixLBFGS",
         "JaxoptOptaxLBFGS",
         "OptaxLBFGS",
-        "OptaxLBFGSScan",
         "OptaxProximalGradient",
         "OptimistixLBFGS",
     )
@@ -175,7 +174,6 @@ class Ridge(Regularizer):
         "OptimistixLBFGS",
         "JaxoptOptaxLBFGS",
         "OptaxLBFGS",
-        "OptaxLBFGSScan",
         "OptaxProximalGradient",
         "OptimistixLBFGS",
     )

@@ -37,5 +37,5 @@ from ._jaxopt_solvers import (
 )
 
 # Purely Optax
-from ._optax_lbfgs import OptaxLBFGS, OptaxLBFGSScan
+from ._optax_lbfgs import OptaxLBFGS
 from ._optax_prox_grad import OptaxProximalGradient
