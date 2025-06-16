@@ -115,8 +115,6 @@ class LBFGS(optx.OptaxMinimiser, OptimistixSolverMixin):
     L-BFGS implementation using optax.lbfgs wrapped by optimistix.OptaxMinimiser.
 
     Convergence criterion is implemented by Optimistix, so it's their Cauchy criterion.
-
-    Parameters default to the same as in optax.lbfgs.
     """
 
     fun: Callable
