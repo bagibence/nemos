@@ -1,5 +1,3 @@
-from typing import Optional
-
 import jaxopt
 
 from ._optimistix_solvers import DEFAULT_RTOL, DEFAULT_ATOL, DEFAULT_MAX_STEPS
@@ -169,7 +167,3 @@ class JaxoptBFGS(jaxopt.BFGS):
     @property
     def max_steps(self):
         return self.maxiter
-
-
-class JaxoptNonlinearCG(jaxopt.NonlinearCG):
-    pass
