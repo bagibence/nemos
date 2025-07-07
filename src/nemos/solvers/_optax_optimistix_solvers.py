@@ -70,7 +70,7 @@ def _make_rate_scaler(
             }
 
         if "max_linesearch_steps" not in linesearch_kwargs:
-            linesearch_kwargs["max_linesearch_steps"] = 30
+            linesearch_kwargs["max_linesearch_steps"] = 15
 
         return optax.scale_by_zoom_linesearch(**linesearch_kwargs)
     else:
@@ -174,7 +174,7 @@ class OptaxOptimistixProximalGradient(OptimistixOptaxSolver):
         self.config = OptimistixConfig(**user_args)
 
         stepsize = solver_init_kwargs.get("stepsize", None)
-        linesearch_kwargs = solver_init_kwargs.get("linesearch_kwargs", {})
+        linesearch_kwargs = solver_init_kwargs.get("linesearch_kwargs", None)
 
         _sgd = optax.chain(
             optax.sgd(learning_rate=1.0, nesterov=nesterov),
