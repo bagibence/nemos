@@ -121,6 +121,7 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
             lin_fn, state.velocity, autodiff_mode=autodiff_mode
         )
 
+        # TODO implement fixed stepsize
         fun_without_aux = lambda params, args: fn(params, args)[0]
         new_y, new_stepsize = self.fista_line_search(
             fun_without_aux,
