@@ -23,10 +23,14 @@ def tree_sub(x, y):
     return jax.tree.map(operator.sub, x, y)
 
 
-# from jaxopt
+# adapted from jaxopt
 # alternatively, could use the definition from optax
 def tree_add_scalar_mul(tree_x: PyTree, scalar, tree_y):
-    return jax.tree_util.tree_map(lambda x, y: x + scalar * y, tree_x, tree_y)
+    return jax.tree.map(lambda x, y: x + scalar * y, tree_x, tree_y)
+
+
+def tree_nan_like(x: PyTree):
+    return jax.tree.map(lambda arr: jnp.full_like(arr, jnp.nan), x)
 
 
 class ProxGradState(eqx.Module):
@@ -51,6 +55,8 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
     maxls: int = 15
     decrease_factor: float = 0.5
 
+    acceleration: bool = True
+
     def init(
         self,
         fn: Callable,
@@ -63,10 +69,18 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
     ) -> ProxGradState:
         del options, f_struct, aux_struct, tags
         fun_val, _ = fn(y, args)
+
+        if self.acceleration:
+            vel = y
+            t = jnp.asarray(1.0)
+        else:
+            vel = tree_nan_like(y)
+            t = jnp.asarray(jnp.nan)
+
         return ProxGradState(
             iter_num=jnp.asarray(0),
-            velocity=y,
-            t=jnp.asarray(1.0),
+            velocity=vel,
+            t=t,
             stepsize=jnp.asarray(1.0),
             terminate=jnp.asarray(False),
             fun_val=fun_val,
@@ -111,44 +125,23 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
         #   next_t = t_{k+1}
         #   next_vel = y_{k+1}
 
-        # TODO might want to store value_and_grad_fun instead of doing this
-        # if we need the gradient anyway?
-        autodiff_mode = options.get("autodiff_mode", "bwd")
-        f_at_prev_vel, lin_fn, _ = jax.linearize(
-            lambda _y: fn(_y, args), state.velocity, has_aux=True
-        )
-        grad_at_prev_vel = optx._misc.lin_to_grad(
-            lin_fn, state.velocity, autodiff_mode=autodiff_mode
-        )
-
-        if self.stepsize is None:
-            # do linesearch to find the new stepsize
-            fun_without_aux = lambda params, args: fn(params, args)[0]
-            new_y, new_stepsize = self.fista_line_search(
-                fun_without_aux,
-                state.velocity,
-                f_at_prev_vel,
-                grad_at_prev_vel,
-                state.stepsize,
-                args,
-            )
-
-            new_stepsize = jnp.where(
-                new_stepsize <= 1e-6,
-                jnp.array(1.0),
-                new_stepsize / self.decrease_factor,
-            )
+        if self.acceleration:
+            update_point = state.velocity
         else:
-            # use the fixed stepsize
-            new_stepsize = self.stepsize
-            new_y = tree_add_scalar_mul(state.velocity, -new_stepsize, grad_at_prev_vel)
-            new_y = self.prox(new_y, self.regularizer_strength, new_stepsize)
+            update_point = y
 
+        new_y, new_stepsize = self._update_at_point(
+            fn, update_point, args, options, state
+        )
         new_fun_val, new_aux = fn(new_y, args)
-
-        next_t = 0.5 * (1 + jnp.sqrt(1 + 4 * state.t**2))
         diff_y = tree_sub(new_y, y)
-        next_vel = tree_add_scalar_mul(new_y, (state.t - 1) / next_t, diff_y)
+
+        if self.acceleration:
+            next_t = 0.5 * (1 + jnp.sqrt(1 + 4 * state.t**2))
+            next_vel = tree_add_scalar_mul(new_y, (state.t - 1) / next_t, diff_y)
+        else:
+            next_t = state.t
+            next_vel = state.velocity
 
         # NOTE do we want to use Cauchy for consistency with other solvers
         # or the other to be consistent with JAXopt?
@@ -173,6 +166,55 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
         )
 
         return new_y, next_state, new_aux
+
+    def _update_at_point(
+        self,
+        fn: Callable,
+        update_point: Y,
+        args: PyTree[Any],
+        options: dict[str, Any],
+        state: ProxGradState,
+    ):
+        """
+        Perform the update with or without linesearch around `update_point`.
+
+        If acceleration is used (FISTA), `update_point` is state.velocity ~ y_{k}.
+        Without acceleration (ISTA) `update_point` is `y` ~ x_{k-1}.
+        """
+        # TODO might want to store value_and_grad_fun instead of doing this
+        # if we need the gradient anyway?
+        autodiff_mode = options.get("autodiff_mode", "bwd")
+        f_at_point, lin_fn, _ = jax.linearize(
+            lambda _y: fn(_y, args), update_point, has_aux=True
+        )
+        grad_at_point = optx._misc.lin_to_grad(
+            lin_fn, update_point, autodiff_mode=autodiff_mode
+        )
+
+        if self.stepsize is None or self.stepsize <= 0.0:
+            # do linesearch to find the new stepsize
+            fun_without_aux = lambda params, args: fn(params, args)[0]
+            new_y, new_stepsize = self.fista_line_search(
+                fun_without_aux,
+                update_point,
+                f_at_point,
+                grad_at_point,
+                state.stepsize,
+                args,
+            )
+
+            new_stepsize = jnp.where(
+                new_stepsize <= 1e-6,
+                jnp.array(1.0),
+                new_stepsize / self.decrease_factor,
+            )
+        else:
+            # use the fixed stepsize
+            new_stepsize = self.stepsize
+            new_y = tree_add_scalar_mul(update_point, -new_stepsize, grad_at_point)
+            new_y = self.prox(new_y, self.regularizer_strength, new_stepsize)
+
+        return new_y, new_stepsize
 
     # adapted from JAXopt
     def fista_line_search(
