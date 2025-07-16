@@ -1,6 +1,5 @@
 """Implementing ProximalGradient with FISTA as an Optimistix IterativeSolver."""
 
-# TODO Implement fixed stepsize instead of linesearch.
 # TODO Implement without acceleration.
 
 from ._optimistix_solvers import OptimistixAdapter
