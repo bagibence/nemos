@@ -1,7 +1,5 @@
 """Implementing ProximalGradient with FISTA as an Optimistix IterativeSolver."""
 
-# TODO Implement without acceleration.
-
 from ._optimistix_solvers import OptimistixAdapter
 
 import operator
