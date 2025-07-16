@@ -1,9 +1,9 @@
 """Implementing ProximalGradient with FISTA as an Optimistix IterativeSolver."""
 
-from ._optimistix_solvers import OptimistixAdapter
+# TODO Implement fixed stepsize instead of linesearch.
+# TODO Implement without acceleration.
 
-from functools import partial
-import inspect
+from ._optimistix_solvers import OptimistixAdapter
 
 import operator
 import optimistix as optx
@@ -48,6 +48,7 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
     rtol: float
     norm: Callable
 
+    stepsize: float | None = None
     maxls: int = 15
     decrease_factor: float = 0.5
 
@@ -121,23 +122,30 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
             lin_fn, state.velocity, autodiff_mode=autodiff_mode
         )
 
-        # TODO implement fixed stepsize
-        fun_without_aux = lambda params, args: fn(params, args)[0]
-        new_y, new_stepsize = self.fista_line_search(
-            fun_without_aux,
-            state.velocity,
-            f_at_prev_vel,
-            grad_at_prev_vel,
-            state.stepsize,
-            args,
-        )
-        new_fun_val, new_aux = fn(new_y, args)
+        if self.stepsize is None:
+            # do linesearch to find the new stepsize
+            fun_without_aux = lambda params, args: fn(params, args)[0]
+            new_y, new_stepsize = self.fista_line_search(
+                fun_without_aux,
+                state.velocity,
+                f_at_prev_vel,
+                grad_at_prev_vel,
+                state.stepsize,
+                args,
+            )
 
-        new_stepsize = jnp.where(
-            new_stepsize <= 1e-6,
-            jnp.array(1.0),
-            new_stepsize / self.decrease_factor,
-        )
+            new_stepsize = jnp.where(
+                new_stepsize <= 1e-6,
+                jnp.array(1.0),
+                new_stepsize / self.decrease_factor,
+            )
+        else:
+            # use the fixed stepsize
+            new_stepsize = self.stepsize
+            new_y = tree_add_scalar_mul(state.velocity, -new_stepsize, grad_at_prev_vel)
+            new_y = self.prox(new_y, self.regularizer_strength, new_stepsize)
+
+        new_fun_val, new_aux = fn(new_y, args)
 
         next_t = 0.5 * (1 + jnp.sqrt(1 + 4 * state.t**2))
         diff_y = tree_sub(new_y, y)
