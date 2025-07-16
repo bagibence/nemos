@@ -52,6 +52,7 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
     stepsize: float | None = None
     maxls: int = 15
     decrease_factor: float = 0.5
+    max_stepsize: float | None = 1.0
 
     acceleration: bool = True
 
@@ -131,6 +132,9 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
         new_y, new_stepsize = self._update_at_point(
             fn, update_point, args, options, state
         )
+        # TODO These could be returned _update_at_point
+        # because the linesearch already calculates it
+        # so a function evaluation could be saved here.
         new_fun_val, new_aux = fn(new_y, args)
         diff_y = tree_sub(new_y, y)
 
@@ -152,7 +156,7 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
             state.fun_val,
             new_fun_val - state.fun_val,
         )
-        # terminate = (optx.two_norm(tree_sub(new_y, y)) / new_stepsize) < self.atol
+        # terminate = (optx.two_norm(diff_y) / new_stepsize) < self.atol
 
         next_state = ProxGradState(
             iter_num=state.iter_num + 1,
@@ -179,8 +183,6 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
         If acceleration is used (FISTA), `update_point` is state.velocity ~ y_{k}.
         Without acceleration (ISTA) `update_point` is `y` ~ x_{k-1}.
         """
-        # TODO might want to store value_and_grad_fun instead of doing this
-        # if we need the gradient anyway?
         autodiff_mode = options.get("autodiff_mode", "bwd")
         f_at_point, lin_fn, _ = jax.linearize(
             lambda _y: fn(_y, args), update_point, has_aux=True
@@ -206,6 +208,11 @@ class ProximalGradient(optx.AbstractMinimiser[Y, Aux, ProxGradState]):
                 jnp.array(1.0),
                 new_stepsize / self.decrease_factor,
             )
+            # B: in my experience, this guard helps stabilize and reduce the number of iterations
+            # For some reason, without it this implementation sometimes needs more iterations than the
+            # original JAXopt implementation, which in theory should be mathematically identical.
+            if self.max_stepsize is not None:
+                new_stepsize = jnp.minimum(new_stepsize, self.max_stepsize)
         else:
             # use the fixed stepsize
             new_stepsize = self.stepsize
