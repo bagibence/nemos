@@ -135,6 +135,26 @@ class TestGLM:
         with expectation:
             glm_class(solver_name=solver_name)
 
+    @pytest.mark.parametrize(
+        "solver_name, solver_class, expectation",
+        [
+            ("GradientDescent", None, does_not_raise()),
+            (None, nmo.solvers.JaxoptGradientDescent, does_not_raise()),
+            (
+                "GradientDescent",
+                nmo.solvers.JaxoptGradientDescent,
+                pytest.raises(ValueError, match="mutually exclusive"),
+            ),
+        ],
+    )
+    def test_init_with_custom_solver(
+        self, solver_name, solver_class, expectation, request, glm_class_type
+    ):
+        """Test that solver class can be passed to GLM and it plays nice with solver_name."""
+        glm_class = request.getfixturevalue(glm_class_type)
+        with expectation:
+            glm_class(solver_name=solver_name, solver_class=solver_class)
+
     def test_non_differentiable_inverse_link(self, request, glm_class_type):
         glm_class = request.getfixturevalue(glm_class_type)
         model = glm_class()
@@ -315,6 +335,22 @@ class TestGLM:
             glm_class = request.getfixturevalue(glm_class_type)
             with expectation:
                 glm_class(regularizer=regularizer, regularizer_strength=1)
+
+    @pytest.mark.parametrize(
+        "regularizer, solver_class, expectation",
+        [
+            ("UnRegularized", nmo.solvers.JaxoptGradientDescent, does_not_raise()),
+            ("Ridge", nmo.solvers.JaxoptGradientDescent, does_not_raise()),
+            ("Lasso", nmo.solvers.JaxoptGradientDescent, does_not_raise()),
+        ],
+    )
+    def test_no_regularizer_compat_check_for_custom_solver(
+        self, regularizer, solver_class, expectation, request, glm_class_type
+    ):
+        """Test that regularizer-solver compatibility check is disabled with using custom solver."""
+        glm_class = request.getfixturevalue(glm_class_type)
+        with expectation:
+            glm_class(regularizer=regularizer, solver_class=solver_class)
 
     @pytest.mark.parametrize(
         "observation, expectation",
@@ -1870,9 +1906,9 @@ class TestGLM:
         loaded_params.update(fit_state)
 
         # Assert matching keys and values
-        assert (
-            initial_params.keys() == loaded_params.keys()
-        ), "Parameter keys mismatch after load."
+        assert initial_params.keys() == loaded_params.keys(), (
+            "Parameter keys mismatch after load."
+        )
 
         for key in initial_params:
             init_val = initial_params[key]
@@ -1880,17 +1916,17 @@ class TestGLM:
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
             elif isinstance(init_val, dict):
-                assert (
-                    init_val == load_val
-                ), f"{key} dict mismatch: {init_val} != {load_val}"
+                assert init_val == load_val, (
+                    f"{key} dict mismatch: {init_val} != {load_val}"
+                )
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(
-                    np.array(init_val), np.array(load_val)
-                ), f"{key} array mismatch"
+                assert np.allclose(np.array(init_val), np.array(load_val)), (
+                    f"{key} array mismatch"
+                )
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(
-                    load_val
-                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                assert _get_name(init_val) == _get_name(load_val), (
+                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                )
 
     @pytest.mark.parametrize("regularizer", ["Ridge"])
     @pytest.mark.parametrize(
@@ -2047,9 +2083,9 @@ class TestGLM:
             loaded_params.update(fit_state)
 
             # Assert matching keys and values
-            assert (
-                initial_params.keys() == loaded_params.keys()
-            ), "Parameter keys mismatch after load."
+            assert initial_params.keys() == loaded_params.keys(), (
+                "Parameter keys mismatch after load."
+            )
 
             unexpected_keys = set(mapping_dict) - set(initial_params)
             raise_exception = bool(unexpected_keys)
@@ -2076,44 +2112,44 @@ class TestGLM:
                             )
                         else:
                             mapping_obs = mapping_dict[key]
-                        assert _get_name(mapping_obs) == _get_name(
-                            load_val
-                        ), f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
+                        assert _get_name(mapping_obs) == _get_name(load_val), (
+                            f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     elif key == "regularizer":
                         if isinstance(mapping_dict[key], str):
                             mapping_reg = instantiate_regularizer(mapping_dict[key])
                         else:
                             mapping_reg = mapping_dict[key]
-                        assert _get_name(mapping_reg) == _get_name(
-                            load_val
-                        ), f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
+                        assert _get_name(mapping_reg) == _get_name(load_val), (
+                            f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     elif key == "solver_name":
-                        assert (
-                            mapping_dict[key] == load_val
-                        ), f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
+                        assert mapping_dict[key] == load_val, (
+                            f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     elif key == "regularizer_strength":
-                        assert (
-                            mapping_dict[key] == load_val
-                        ), f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
+                        assert mapping_dict[key] == load_val, (
+                            f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     continue
 
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
 
             elif isinstance(init_val, dict):
-                assert (
-                    init_val == load_val
-                ), f"{key} dict mismatch: {init_val} != {load_val}"
+                assert init_val == load_val, (
+                    f"{key} dict mismatch: {init_val} != {load_val}"
+                )
 
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(
-                    np.array(init_val), np.array(load_val)
-                ), f"{key} array mismatch"
+                assert np.allclose(np.array(init_val), np.array(load_val)), (
+                    f"{key} array mismatch"
+                )
 
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(
-                    load_val
-                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                assert _get_name(init_val) == _get_name(load_val), (
+                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                )
 
     def test_save_and_load_nested_class(
         self, nested_regularizer, tmp_path, glm_class_type
@@ -3885,9 +3921,9 @@ class TestPoissonGLM:
         )
         assert isinstance(func1, expected_type_solver)
         assert isinstance(func2, expected_type_link)
-        assert isinstance(
-            convexity, expected_type_convexity
-        ), f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
+        assert isinstance(convexity, expected_type_convexity), (
+            f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
+        )
 
 
 @pytest.mark.parametrize("inv_link", [jnp.exp, lambda x: 1 / x])

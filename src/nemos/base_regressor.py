@@ -100,22 +100,27 @@ class BaseRegressor(Base, abc.ABC):
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[RegularizerStrength] = None,
         solver_name: Optional[str] = None,
+        solver_class: Optional[Type] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
-        # no solver name provided, use default
-        if solver_name is None:
-            self._solver_name = self.regularizer.default_solver
+        if solver_name is not None and solver_class is not None:
+            raise ValueError("solver_name and solver_class are mutually exclusive.")
+
+        if solver_class is not None:
+            # TODO: validate the solver class first
+            self.solver_class = solver_class
         else:
-            self.solver_name = solver_name
+            if solver_name is not None:
+                self.solver_name = solver_name
+            else:
+                self.solver_name = self.regularizer.default_solver
 
         if solver_kwargs is None:
             solver_kwargs = dict()
-
-        solver_class = solvers.solver_registry[self.solver_name]
-        self._check_solver_kwargs(solver_class, solver_kwargs)
+        self._check_solver_kwargs(self._solver_class, solver_kwargs)
 
         self.solver_kwargs = solver_kwargs
         self._solver_init_state = None
@@ -248,6 +253,18 @@ class BaseRegressor(Base, abc.ABC):
         # check if solver str passed is valid for regularizer
         self._regularizer.check_solver(solver_name)
         self._solver_name = solver_name
+        self._solver_class = solvers.solver_registry[solver_name]
+        self._custom_solver = False
+
+    @property
+    def solver_class(self):
+        return self._solver_class
+
+    @solver_class.setter
+    def solver_class(self, solver_class: Type):
+        self._solver_class = solver_class
+        self._solver_name = str(solver_class)
+        self._custom_solver = True
 
     @property
     def solver_kwargs(self):
@@ -316,24 +333,24 @@ class BaseRegressor(Base, abc.ABC):
             The instance itself for method chaining.
         """
         # final check that solver is valid for chosen regularizer
-        self._regularizer.check_solver(self.solver_name)
+        if not self._custom_solver:
+            self._regularizer.check_solver(self.solver_name)
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
             solver_kwargs = deepcopy(self.solver_kwargs)
 
         # instantiate the solver
-        solver_cls = solvers.solver_registry[self.solver_name]
+        self._check_solver_kwargs(self.solver_class, solver_kwargs)
 
-        self._check_solver_kwargs(solver_cls, solver_kwargs)
-
-        solver = solver_cls(
+        solver = self.solver_class(
             self._predict_and_compute_loss,
             self.regularizer,
             self.regularizer_strength,
             **solver_kwargs,
         )
         self._solver = solver
+        assert isinstance(self._solver, self._solver_class)
 
         # nemos's solvers store a .fun attribute, but it's not necessary for a solver to work.
         # A test relies on having _solver_loss_fun saved, so still check and save it if possible.

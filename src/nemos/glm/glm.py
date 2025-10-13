@@ -217,12 +217,14 @@ class GLM(BaseRegressor):
         regularizer: Optional[Union[str, Regularizer]] = None,
         regularizer_strength: Optional[RegularizerStrength] = None,
         solver_name: str = None,
+        solver_class: Type = None,
         solver_kwargs: dict = None,
     ):
         super().__init__(
             regularizer=regularizer,
             regularizer_strength=regularizer_strength,
             solver_name=solver_name,
+            solver_class=solver_class,
             solver_kwargs=solver_kwargs,
         )
 
