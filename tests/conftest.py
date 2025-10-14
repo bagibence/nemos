@@ -1134,6 +1134,27 @@ _solver_registry_per_backend = {
         "BFGS": nmo.solvers.OptimistixBFGS,
         "NonlinearCG": nmo.solvers.OptimistixNonlinearCG,
     },
+    "both": {
+        **_common_solvers,
+        # jaxopt as default
+        "GradientDescent": nmo.solvers.JaxoptGradientDescent,
+        "ProximalGradient": nmo.solvers.JaxoptProximalGradient,
+        "LBFGS": nmo.solvers.JaxoptLBFGS,
+        "BFGS": nmo.solvers.JaxoptBFGS,
+        "NonlinearCG": nmo.solvers.JaxoptNonlinearCG,
+        # jaxopt backend
+        "GradientDescent[jaxopt]": nmo.solvers.JaxoptGradientDescent,
+        "ProximalGradient[jaxopt]": nmo.solvers.JaxoptProximalGradient,
+        "LBFGS[jaxopt]": nmo.solvers.JaxoptLBFGS,
+        "BFGS[jaxopt]": nmo.solvers.JaxoptBFGS,
+        "NonlinearCG[jaxopt]": nmo.solvers.JaxoptNonlinearCG,
+        # optimistix backend
+        "GradientDescent[optimistix]": nmo.solvers.OptimistixOptaxGradientDescent,
+        "ProximalGradient[optimistix]": nmo.solvers.OptimistixOptaxProximalGradient,
+        "LBFGS[optimistix]": nmo.solvers.OptimistixOptaxLBFGS,
+        "BFGS[optimistix]": nmo.solvers.OptimistixBFGS,
+        "NonlinearCG[optimistix]": nmo.solvers.OptimistixNonlinearCG,
+    },
 }
 
 

@@ -336,14 +336,12 @@ def test_svrg_glm_fit(
 
     # set the tolerance such that the solvers never hit their convergence criterion
     # and run until maxiter is reached
-    backend = os.getenv("NEMOS_SOLVER_BACKEND")
-    if backend is not None:
-        use_jaxopt_tol = backend == "jaxopt"
-    else:
-        use_jaxopt_tol = (
-            "jaxopt"
-            in str(nmo.solvers._solver_registry.solver_registry[solver_name]).lower()
-        )
+    _backend = os.getenv("NEMOS_SOLVER_BACKEND")
+    _solver_name = str(
+        nmo.solvers._solver_registry.solver_registry[solver_name]
+    ).lower()
+    use_jaxopt_tol = "jaxopt" in _solver_name or _backend == "jaxopt"
+
     tol = -1.0 if use_jaxopt_tol else 0.0
     solver_kwargs = {"maxiter": maxiter, "tol": tol}
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import abc
+import re
 from abc import abstractmethod
 from copy import deepcopy
 from functools import wraps
@@ -106,24 +107,19 @@ class BaseRegressor(Base, abc.ABC):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
-        if solver_name is not None and solver_class is not None:
-            if (
-                solver_name not in solvers.solver_registry
-                or solvers.solver_registry[solver_name] != solver_class
-            ):
+        # if the name is given, let its setter take care of things
+        if solver_name is not None:
+            self.solver_name = solver_name
+            if solver_class is not None and self._solver_class != solver_class:
                 raise ValueError(
-                    f"solver_name and solver_class contradict each other. Got {solver_name} and {solver_class}"
+                    f"solver_name and solver_class contradict each other. Got {solver_name} and {solver_class}."
                 )
-
-        if solver_class is not None:
+        elif solver_class is not None:
             # TODO: validate the solver class first
-            self.solver_class = solver_class
+            self._set_solver_from_class(solver_class)
         else:
-            self.solver_name = (
-                solver_name
-                if solver_name is not None
-                else self.regularizer.default_solver
-            )
+            # if neither name or class is given, use the default
+            self.solver_name = self.regularizer.default_solver
 
         if solver_kwargs is None:
             solver_kwargs = dict()
@@ -133,6 +129,32 @@ class BaseRegressor(Base, abc.ABC):
         self._solver_init_state = None
         self._solver_update = None
         self._solver_run = None
+
+    def _set_solver_from_class(self, solver_class: Type):
+        """Set _solver_class and _solver_name if only a class is provided."""
+        # figure out the name to use
+        registered_names = {
+            name
+            for name, klass in solvers.solver_registry.items()
+            if klass == solver_class
+        }
+        if len(registered_names) == 0:
+            self._solver_name = str(solver_class)
+        elif len(registered_names) == 1:
+            self._solver_name = registered_names.pop()
+        elif len(registered_names) == 2:
+            specific_names = [
+                name for name in registered_names if re.search(r"\[.*\]", name)
+            ]
+            assert len(specific_names) == 1
+            self._solver_name = specific_names[0]
+        else:
+            raise ValueError(
+                f"Solver is registered under more than 2 different names: {registered_names}"
+            )
+
+        self._solver_class = solver_class
+        self._custom_solver = True
 
     def __sklearn_tags__(self):
         """Return regression model specific estimator tags."""
@@ -265,21 +287,8 @@ class BaseRegressor(Base, abc.ABC):
 
     @property
     def solver_class(self):
+        """Getter for the solver_class attribute."""
         return self._solver_class
-
-    @solver_class.setter
-    def solver_class(self, solver_class: Type):
-        self._solver_class = solver_class
-
-        # TODO: Could be bad if the same solver is present in the registry under different names
-        # try deducting solver name from the registry
-        inverse_registry = {v: k for k, v in solvers.solver_registry.items()}
-        if solver_class in inverse_registry:
-            self._solver_name = inverse_registry[solver_class]
-        else:
-            self._solver_name = str(solver_class)
-
-        self._custom_solver = True
 
     @property
     def solver_kwargs(self):
