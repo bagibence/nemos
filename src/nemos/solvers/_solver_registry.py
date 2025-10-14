@@ -45,7 +45,9 @@ def register_solver(name: str, cls: Type | None = None, replace: bool = False):
     def decorator(c: Type):
         # TODO: validate the solver here
         if name in _solver_registry and not replace:
-            raise ValueError(f"Optimizer '{name}' already registered.")
+            raise ValueError(
+                f"Optimizer '{name}' already registered. Use replace=True to overwrite existing implementation."
+            )
         _solver_registry[name] = c
         return c
 

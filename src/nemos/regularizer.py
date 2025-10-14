@@ -102,6 +102,9 @@ class Regularizer(Base, abc.ABC):
                 f"The solver: {solver_name} is not allowed for "
                 f"{self.__class__.__name__} regularization. Allowed solvers are "
                 f"{self.allowed_solvers}."
+                f"If {solver_name} is your implementation and is designed to be"
+                f"compatible with {self.__class__.__name__}, register it with"
+                f"{self.__class__.__name__}.allow_solver({solver_name})"
             )
 
     def __repr__(self):
