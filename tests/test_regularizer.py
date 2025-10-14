@@ -164,7 +164,7 @@ def test_get_only_allowed_solvers(regularizer):
 )
 def test_item_assignment_allowed_solvers(regularizer):
     with pytest.raises(
-        TypeError, match="'tuple' object does not support item assignment"
+        TypeError, match="'set' object does not support item assignment"
     ):
         regularizer.allowed_solvers[0] = "my-favourite-solver"
 

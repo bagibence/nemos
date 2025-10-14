@@ -7,7 +7,7 @@ with various optimization methods, and they can be applied depending on the mode
 """
 
 import abc
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
@@ -44,7 +44,7 @@ class Regularizer(Base, abc.ABC):
         String of the default solver name allowed for use with this regularizer.
     """
 
-    _allowed_solvers: Tuple[str] = tuple()
+    _allowed_solvers: set[str] = set()
     _default_solver: str = None
 
     def __init__(
@@ -54,7 +54,7 @@ class Regularizer(Base, abc.ABC):
         super().__init__(**kwargs)
 
     @property
-    def allowed_solvers(self) -> Tuple[str]:
+    def allowed_solvers(self) -> set[str]:
         return self._allowed_solvers
 
     @property
@@ -121,6 +121,39 @@ class Regularizer(Base, abc.ABC):
                 )
         return strength
 
+    @classmethod
+    def allow_solver(
+        cls, name: str, solver_class: Type | None = None, replace: bool = False
+    ):
+        """
+        Add solver to allowed solvers.
+
+        Use either as a function:
+            MyRegularizer.allow_solver("MySolver")
+        or as a decorator:
+            @MyRegularizer.allow_solver("MySolver")
+            class MySolverImplementation:
+                ...
+
+        Note that for actually using the solver during optimization,
+        it has to be registered in the solver registry under the same name.
+        """
+
+        def decorator(c: Type):
+            if name in cls._allowed_solvers and not replace:
+                raise ValueError(
+                    f"Optimizer '{name}' already registered. Use replace=True to replace."
+                )
+            cls._allowed_solvers.discard(name)
+            cls._allowed_solvers.add(name)
+            return c
+
+        # support both decorator and function styles
+        if solver_class is None:
+            return decorator
+        else:
+            return decorator(solver_class)
+
 
 class UnRegularized(Regularizer):
     """
@@ -130,7 +163,7 @@ class UnRegularized(Regularizer):
     unpenalized loss function.
     """
 
-    _allowed_solvers = (
+    _allowed_solvers = {
         "GradientDescent",
         "BFGS",
         "LBFGS",
@@ -138,7 +171,7 @@ class UnRegularized(Regularizer):
         "ProximalGradient",
         "SVRG",
         "ProxSVRG",
-    )
+    }
 
     _default_solver = "GradientDescent"
 
@@ -178,7 +211,7 @@ class Ridge(Regularizer):
     Ridge penalized loss function.
     """
 
-    _allowed_solvers = (
+    _allowed_solvers = {
         "GradientDescent",
         "BFGS",
         "LBFGS",
@@ -186,7 +219,7 @@ class Ridge(Regularizer):
         "ProximalGradient",
         "SVRG",
         "ProxSVRG",
-    )
+    }
 
     _default_solver = "GradientDescent"
 
@@ -263,10 +296,10 @@ class Lasso(Regularizer):
     Lasso penalized loss function.
     """
 
-    _allowed_solvers = (
+    _allowed_solvers = {
         "ProximalGradient",
         "ProxSVRG",
-    )
+    }
 
     _default_solver = "ProximalGradient"
 
@@ -361,10 +394,10 @@ class ElasticNet(Regularizer):
     .. [4] https://en.wikipedia.org/wiki/Elastic_net_regularization
     """
 
-    _allowed_solvers = (
+    _allowed_solvers = {
         "ProximalGradient",
         "ProxSVRG",
-    )
+    }
 
     _default_solver = "ProximalGradient"
 
@@ -539,10 +572,10 @@ class GroupLasso(Regularizer):
     coeff shape: (5,)
     """
 
-    _allowed_solvers = (
+    _allowed_solvers = {
         "ProximalGradient",
         "ProxSVRG",
-    )
+    }
 
     _default_solver = "ProximalGradient"
 
