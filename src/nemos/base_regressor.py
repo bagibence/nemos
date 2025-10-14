@@ -114,7 +114,7 @@ class BaseRegressor(Base, abc.ABC):
         if solver_kwargs is None:
             solver_kwargs = dict()
 
-        solver_class = solvers.solver_registry[self.solver_name]
+        solver_class = solvers.get_solver(self.solver_name)
         self._check_solver_kwargs(solver_class, solver_kwargs)
 
         self.solver_kwargs = solver_kwargs
@@ -258,7 +258,7 @@ class BaseRegressor(Base, abc.ABC):
     def solver_kwargs(self, solver_kwargs: dict):
         """Setter for the solver_kwargs attribute."""
         if solver_kwargs:
-            solver_cls = solvers.solver_registry[self.solver_name]
+            solver_cls = solvers.get_solver(self.solver_name)
             self._check_solver_kwargs(solver_cls, solver_kwargs)
         self._solver_kwargs = solver_kwargs
 
@@ -323,7 +323,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_kwargs = deepcopy(self.solver_kwargs)
 
         # instantiate the solver
-        solver_cls = solvers.solver_registry[self.solver_name]
+        solver_cls = solvers.get_solver(self.solver_name)
 
         self._check_solver_kwargs(solver_cls, solver_kwargs)
 

@@ -3285,7 +3285,7 @@ class TestGLMObservationModel:
         # use glm static methods to check if the solver is batchable
         # if not pop the batch_size kwarg
         try:
-            slv_class = nmo.solvers.solver_registry[solver_name]
+            slv_class = nmo.solvers.get_solver(solver_name)
             nmo.glm.GLM._check_solver_kwargs(slv_class, solver_kwargs)
         except NameError:
             solver_kwargs.pop("batch_size")

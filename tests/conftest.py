@@ -1157,12 +1157,12 @@ def configure_solver_backend():
         pytest.fail(f"Unknown solver backend: {backend}. Available: {available}")
 
     # save the original registry so that we can restore it after
-    original = nmo.solvers.solver_registry.copy()
-    nmo.solvers.solver_registry.clear()
-    nmo.solvers.solver_registry.update(_backend_solver_registry)
+    original = nmo.solvers._solver_registry._solver_registry.copy()
+    nmo.solvers._solver_registry._solver_registry.clear()
+    nmo.solvers._solver_registry._solver_registry.update(_backend_solver_registry)
 
     try:
         yield
     finally:
-        nmo.solvers.solver_registry.clear()
-        nmo.solvers.solver_registry.update(original)
+        nmo.solvers._solver_registry._solver_registry.clear()
+        nmo.solvers._solver_registry._solver_registry.update(original)
