@@ -107,16 +107,23 @@ class BaseRegressor(Base, abc.ABC):
         self.regularizer_strength = regularizer_strength
 
         if solver_name is not None and solver_class is not None:
-            raise ValueError("solver_name and solver_class are mutually exclusive.")
+            if (
+                solver_name not in solvers.solver_registry
+                or solvers.solver_registry[solver_name] != solver_class
+            ):
+                raise ValueError(
+                    f"solver_name and solver_class contradict each other. Got {solver_name} and {solver_class}"
+                )
 
         if solver_class is not None:
             # TODO: validate the solver class first
             self.solver_class = solver_class
         else:
-            if solver_name is not None:
-                self.solver_name = solver_name
-            else:
-                self.solver_name = self.regularizer.default_solver
+            self.solver_name = (
+                solver_name
+                if solver_name is not None
+                else self.regularizer.default_solver
+            )
 
         if solver_kwargs is None:
             solver_kwargs = dict()
@@ -263,7 +270,15 @@ class BaseRegressor(Base, abc.ABC):
     @solver_class.setter
     def solver_class(self, solver_class: Type):
         self._solver_class = solver_class
-        self._solver_name = str(solver_class)
+
+        # TODO: Could be bad if the same solver is present in the registry under different names
+        # try deducting solver name from the registry
+        inverse_registry = {v: k for k, v in solvers.solver_registry.items()}
+        if solver_class in inverse_registry:
+            self._solver_name = inverse_registry[solver_class]
+        else:
+            self._solver_name = str(solver_class)
+
         self._custom_solver = True
 
     @property
