@@ -141,6 +141,10 @@ class Regularizer(Base, abc.ABC):
         Note that for actually using the solver during optimization,
         it has to be registered in the solver registry under the same name.
         """
+        from .solvers import list_available_solvers
+
+        if name not in list_available_solvers():
+            raise ValueError(f"{name} is not available in the solver registry.")
 
         def decorator(c: Type):
             if name in cls._allowed_solvers and not replace:
