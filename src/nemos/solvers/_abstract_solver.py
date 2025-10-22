@@ -1,7 +1,7 @@
 """Base class defining the interface for solvers that can be used by `BaseRegressor`."""
 
 import abc
-from typing import Any, Callable, Generic, NamedTuple
+from typing import Any, Callable, Generic, NamedTuple, Protocol, runtime_checkable
 
 from ..regularizer import Regularizer
 from ..typing import Params, SolverState, StepResult
@@ -102,3 +102,31 @@ class AbstractSolver(abc.ABC, Generic[SolverState]):
         - whether the max number of steps were reached
         """
         pass
+
+
+@runtime_checkable
+class SolverProtocol(Protocol, Generic[SolverState]):
+    """
+    Protocol mirroring the interface of AbstractSolver[SolverState].
+
+    Implementations can be checked at runtime via isinstance(obj, SolverProtocol).
+    """
+
+    def __init__(
+        self,
+        unregularized_loss: Callable,
+        regularizer: Regularizer,
+        regularizer_strength: float | None,
+        **solver_init_kwargs: Any,
+    ) -> None: ...
+
+    def init_state(self, init_params: Params, *args: Any) -> SolverState: ...
+
+    def update(self, params: Params, state: SolverState, *args: Any) -> StepResult: ...
+
+    def run(self, init_params: Params, *args: Any) -> StepResult: ...
+
+    @classmethod
+    def get_accepted_arguments(cls) -> set[str]: ...
+
+    def get_optim_info(self, state: SolverState) -> OptimizationInfo: ...
