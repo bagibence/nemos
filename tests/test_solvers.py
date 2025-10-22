@@ -626,13 +626,15 @@ def test_svrg_wrong_shapes(shapes, expected_context):
 
 def test_all_solvers_accept_tol_and_not_atol():
     """All solvers should accept tol and not accept atol."""
-    for solver_class in nmo.solvers._solver_registry.solver_registry.values():
+    for spec in nmo.solvers.solver_registry.available_solvers:
+        solver_class = spec.implementation
         assert "tol" in solver_class.get_accepted_arguments()
         assert "atol" not in solver_class.get_accepted_arguments()
 
 
 def test_all_solvers_accept_maxiter_and_not_max_steps():
     """All solvers should accept maxiter and not accept max_steps."""
-    for solver_class in nmo.solvers._solver_registry.solver_registry.values():
+    for spec in nmo.solvers.solver_registry.available_solvers:
+        solver_class = spec.implementation
         assert "maxiter" in solver_class.get_accepted_arguments()
         assert "max_steps" not in solver_class.get_accepted_arguments()
