@@ -123,7 +123,12 @@ class TestGLM:
             ("ProxSVRG", does_not_raise()),
             (
                 1,
-                pytest.raises(ValueError, match="The solver: 1 is not allowed "),
+                pytest.raises(TypeError, match="Type of solver has to be one of"),
+            ),
+            (nmo.solvers.WrappedSVRG, does_not_raise()),
+            (
+                nmo.regularizer.Ridge,
+                pytest.raises(ValueError, match="implement the SolverProtocol"),
             ),
         ],
     )
@@ -134,6 +139,21 @@ class TestGLM:
         glm_class = request.getfixturevalue(glm_class_type)
         with expectation:
             glm_class(solver_name=solver_name)
+
+    @pytest.mark.parametrize(
+        "solver_name, expectation",
+        [
+            (nmo.solvers.WrappedSVRG, "WrappedSVRG"),
+            (nmo.solvers.OptimistixBFGS, "OptimistixBFGS"),
+        ],
+    )
+    def test_custom_solver_name_set(
+        self, solver_name, expectation, request, glm_class_type
+    ):
+        # TODO: This test is only required if we keep the solver_name attribute
+        glm_class = request.getfixturevalue(glm_class_type)
+        model = glm_class(solver_name=solver_name)
+        assert model.solver_name == expectation
 
     def test_non_differentiable_inverse_link(self, request, glm_class_type):
         glm_class = request.getfixturevalue(glm_class_type)
@@ -2995,7 +3015,9 @@ class TestGLMObservationModel:
         X, y, model, true_params, firing_rate = request.getfixturevalue(
             glm_type + model_instantiation
         )
-        param_grid = {"solver_name": ["BFGS", "GradientDescent"]}
+        param_grid = {
+            "solver_name": ["BFGS", "GradientDescent", nmo.solvers.OptimistixOptaxLBFGS]
+        }
         cls = GridSearchCV(model, param_grid).fit(X, y)
         # check that the repr works after cloning
         repr(cls)

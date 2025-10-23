@@ -8,18 +8,20 @@ from abc import abstractmethod
 from copy import deepcopy
 from functools import wraps
 from pathlib import Path
-from typing import Any, NamedTuple, Optional, Tuple, Type, Union
+from typing import Any, NamedTuple, Optional, Tuple, Type, Union, cast
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from nemos.solvers._solver_registry import SolverRegistry
+
 from . import solvers, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regularizer
 from .base_class import Base
 from .regularizer import Regularizer
-from .solvers._abstract_solver import SolverState, StepResult
+from .solvers._abstract_solver import SolverProtocol, SolverState, StepResult
 from .typing import (
     DESIGN_INPUT_TYPE,
     RegularizerStrength,
@@ -99,17 +101,31 @@ class BaseRegressor(Base, abc.ABC):
         self,
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[RegularizerStrength] = None,
-        solver_name: Optional[str] = None,
+        # TODO: Rename to solver
+        solver_name: Optional[str | Type[SolverProtocol]] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
-        # no solver name provided, use default
         if solver_name is None:
-            self._solver_name = self.regularizer.default_solver
-        else:
+            self.solver_name = cast(Regularizer, self.regularizer).default_solver
+        elif isinstance(solver_name, str):
             self.solver_name = solver_name
+        elif isinstance(solver_name, Type):
+            if issubclass(solver_name, SolverProtocol):
+                # NOTE: test_compatibility_with_sklearn_cv test is important
+                raise NotImplementedError("Custom solvers are still in the works.")
+            else:
+                raise ValueError(
+                    f"{solver_name} is a class, but doesn't implement the SolverProtocol protocol. "
+                    "Please check that the required methods are implemented."
+                )
+        else:
+            raise TypeError(
+                f"Type of solver has to be one of None, str, Type[SolverProtocol]."
+                f"Got {type(solver_name)}."
+            )
 
         if solver_kwargs is None:
             solver_kwargs = dict()
@@ -246,7 +262,8 @@ class BaseRegressor(Base, abc.ABC):
     def solver_name(self, solver_name: str):
         """Setter for the solver_name attribute."""
         # check if solver str passed is valid for regularizer
-        self._regularizer.check_solver(solver_name)
+        if isinstance(solver_name, str):
+            self._regularizer.check_solver(solver_name)
         self._solver_name = solver_name
 
     @property
