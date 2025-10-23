@@ -32,7 +32,7 @@ GLM_COMMON_PARAMS_NAMES = {
     "regularizer",
     "regularizer_strength",
     "solver_kwargs",
-    "solver_name",
+    "solver",
 }
 OBSERVATION_MODEL_EXTRA_PARAMS_NAMES = {
     "NegativeBinomialObservations": {"observation_model__scale"},
@@ -111,7 +111,7 @@ class TestGLM:
     # Test model.__init__
     #######################
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             # test solver at initialization, where test_regularizers.py tests solvers with set_params
             (None, does_not_raise()),
@@ -132,28 +132,26 @@ class TestGLM:
             ),
         ],
     )
-    def test_init_solver_type(self, solver_name, expectation, request, glm_class_type):
+    def test_init_solver_type(self, solver, expectation, request, glm_class_type):
         """
         Test that an error is raised if a non-compatible solver is passed.
         """
         glm_class = request.getfixturevalue(glm_class_type)
         with expectation:
-            glm_class(solver_name=solver_name)
+            glm_class(solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             (nmo.solvers.WrappedSVRG, "WrappedSVRG"),
             (nmo.solvers.OptimistixBFGS, "OptimistixBFGS"),
         ],
     )
-    def test_custom_solver_name_set(
-        self, solver_name, expectation, request, glm_class_type
-    ):
+    def test_custom_solver_name_set(self, solver, expectation, request, glm_class_type):
         # TODO: This test is only required if we keep the solver_name attribute
         glm_class = request.getfixturevalue(glm_class_type)
-        model = glm_class(solver_name=solver_name)
-        assert model.solver_name == expectation
+        model = glm_class(solver=solver)
+        assert model.solver == expectation
 
     def test_non_differentiable_inverse_link(self, request, glm_class_type):
         glm_class = request.getfixturevalue(glm_class_type)
@@ -388,7 +386,7 @@ class TestGLM:
                 "regularizer",
                 "regularizer_strength",
                 "solver_kwargs",
-                "solver_name",
+                "solver",
             }
         else:
             expected_keys = {
@@ -397,7 +395,7 @@ class TestGLM:
                 "regularizer",
                 "regularizer_strength",
                 "solver_kwargs",
-                "solver_name",
+                "solver",
             }
 
         model = glm_class()
@@ -411,7 +409,7 @@ class TestGLM:
                     model.regularizer,
                     model.regularizer_strength,
                     model.solver_kwargs,
-                    model.solver_name,
+                    model.solver,
                 ]
 
             else:
@@ -421,7 +419,7 @@ class TestGLM:
                     model.regularizer,
                     model.regularizer_strength,
                     model.solver_kwargs,
-                    model.solver_name,
+                    model.solver,
                 ]
 
         expected_values = get_expected_values(model)
@@ -429,7 +427,7 @@ class TestGLM:
         assert list(model.get_params().values()) == expected_values
 
         # passing params
-        model = glm_class(solver_name="LBFGS", regularizer="UnRegularized")
+        model = glm_class(solver="LBFGS", regularizer="UnRegularized")
 
         expected_values = get_expected_values(model)
         assert set(model.get_params().keys()) == expected_keys
@@ -443,7 +441,7 @@ class TestGLM:
         assert list(model.get_params().values()) == expected_values
 
         # changing solver
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
 
         expected_values = get_expected_values(model)
         assert set(model.get_params().keys()) == expected_keys
@@ -1525,7 +1523,7 @@ class TestGLM:
         )
         model.set_params(
             regularizer=nmo.regularizer.GroupLasso(mask=mask),
-            solver_name="ProximalGradient",
+            solver="ProximalGradient",
             regularizer_strength=1.0,
         )
         params = model.initialize_params(X, y)
@@ -1799,7 +1797,7 @@ class TestGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "GradientDescent",
             "BFGS",
@@ -1839,7 +1837,7 @@ class TestGLM:
         self,
         regularizer,
         obs_model,
-        solver_name,
+        solver,
         tmp_path,
         glm_class_type,
         fit_state_attrs,
@@ -1853,15 +1851,15 @@ class TestGLM:
             regularizer == "Lasso"
             or regularizer == "GroupLasso"
             or regularizer == "ElasticNet"
-            and solver_name not in ["ProximalGradient", "ProxSVRG"]
+            and solver not in ["ProximalGradient", "ProxSVRG"]
         ):
             pytest.skip(
-                f"Skipping {solver_name} for Lasso type regularizer; not an approximate solver."
+                f"Skipping {solver} for Lasso type regularizer; not an approximate solver."
             )
 
         kwargs = dict(
             observation_model=obs_model,
-            solver_name=solver_name,
+            solver=solver,
             regularizer=regularizer,
             regularizer_strength=2.0,
             solver_kwargs={"tol": 10**-6},
@@ -1890,9 +1888,9 @@ class TestGLM:
         loaded_params.update(fit_state)
 
         # Assert matching keys and values
-        assert (
-            initial_params.keys() == loaded_params.keys()
-        ), "Parameter keys mismatch after load."
+        assert initial_params.keys() == loaded_params.keys(), (
+            "Parameter keys mismatch after load."
+        )
 
         for key in initial_params:
             init_val = initial_params[key]
@@ -1900,17 +1898,17 @@ class TestGLM:
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
             elif isinstance(init_val, dict):
-                assert (
-                    init_val == load_val
-                ), f"{key} dict mismatch: {init_val} != {load_val}"
+                assert init_val == load_val, (
+                    f"{key} dict mismatch: {init_val} != {load_val}"
+                )
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(
-                    np.array(init_val), np.array(load_val)
-                ), f"{key} array mismatch"
+                assert np.allclose(np.array(init_val), np.array(load_val)), (
+                    f"{key} array mismatch"
+                )
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(
-                    load_val
-                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                assert _get_name(init_val) == _get_name(load_val), (
+                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                )
 
     @pytest.mark.parametrize("regularizer", ["Ridge"])
     @pytest.mark.parametrize(
@@ -1920,7 +1918,7 @@ class TestGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "ProxSVRG",
         ],
@@ -2019,7 +2017,7 @@ class TestGLM:
         self,
         regularizer,
         obs_model,
-        solver_name,
+        solver,
         mapping_dict,
         tmp_path,
         glm_class_type,
@@ -2035,15 +2033,15 @@ class TestGLM:
         if (
             regularizer == "Lasso"
             or regularizer == "GroupLasso"
-            and solver_name not in ["ProximalGradient", "SVRG", "ProxSVRG"]
+            and solver not in ["ProximalGradient", "SVRG", "ProxSVRG"]
         ):
             pytest.skip(
-                f"Skipping {solver_name} for Lasso type regularizer; not an approximate solver."
+                f"Skipping {solver} for Lasso type regularizer; not an approximate solver."
             )
 
         model = model_class(
             observation_model=obs_model,
-            solver_name=solver_name,
+            solver=solver,
             regularizer=regularizer,
             regularizer_strength=2.0,
         )
@@ -2067,9 +2065,9 @@ class TestGLM:
             loaded_params.update(fit_state)
 
             # Assert matching keys and values
-            assert (
-                initial_params.keys() == loaded_params.keys()
-            ), "Parameter keys mismatch after load."
+            assert initial_params.keys() == loaded_params.keys(), (
+                "Parameter keys mismatch after load."
+            )
 
             unexpected_keys = set(mapping_dict) - set(initial_params)
             raise_exception = bool(unexpected_keys)
@@ -2096,44 +2094,44 @@ class TestGLM:
                             )
                         else:
                             mapping_obs = mapping_dict[key]
-                        assert _get_name(mapping_obs) == _get_name(
-                            load_val
-                        ), f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
+                        assert _get_name(mapping_obs) == _get_name(load_val), (
+                            f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     elif key == "regularizer":
                         if isinstance(mapping_dict[key], str):
                             mapping_reg = instantiate_regularizer(mapping_dict[key])
                         else:
                             mapping_reg = mapping_dict[key]
-                        assert _get_name(mapping_reg) == _get_name(
-                            load_val
-                        ), f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
-                    elif key == "solver_name":
-                        assert (
-                            mapping_dict[key] == load_val
-                        ), f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
+                        assert _get_name(mapping_reg) == _get_name(load_val), (
+                            f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
+                        )
+                    elif key == "solver":
+                        assert mapping_dict[key] == load_val, (
+                            f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     elif key == "regularizer_strength":
-                        assert (
-                            mapping_dict[key] == load_val
-                        ), f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
+                        assert mapping_dict[key] == load_val, (
+                            f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
+                        )
                     continue
 
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
 
             elif isinstance(init_val, dict):
-                assert (
-                    init_val == load_val
-                ), f"{key} dict mismatch: {init_val} != {load_val}"
+                assert init_val == load_val, (
+                    f"{key} dict mismatch: {init_val} != {load_val}"
+                )
 
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(
-                    np.array(init_val), np.array(load_val)
-                ), f"{key} array mismatch"
+                assert np.allclose(np.array(init_val), np.array(load_val)), (
+                    f"{key} array mismatch"
+                )
 
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(
-                    load_val
-                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                assert _get_name(init_val) == _get_name(load_val), (
+                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
+                )
 
     def test_save_and_load_nested_class(
         self, nested_regularizer, tmp_path, glm_class_type
@@ -2542,27 +2540,27 @@ class TestGLMObservationModel:
         """
         if "poisson" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
             else:
-                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
 
         elif "gamma" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
             else:
-                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
 
         elif "bernoulli" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
             else:
-                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
 
         elif "negative_binomial":
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS'\n)"
             else:
-                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS'\n)"
 
         else:
             raise ValueError("Unknown model instantiation")
@@ -2624,7 +2622,7 @@ class TestGLMObservationModel:
                     model.regularizer,
                     model.regularizer_strength,
                     model.solver_kwargs,
-                    model.solver_name,
+                    model.solver,
                 ]
                 if isinstance(model.observation_model, NegativeBinomialObservations):
                     vals = vals[:2] + [model.observation_model.scale] + vals[2:]
@@ -2644,7 +2642,7 @@ class TestGLMObservationModel:
                     model.regularizer,
                     model.regularizer_strength,
                     model.solver_kwargs,
-                    model.solver_name,
+                    model.solver,
                 ]
                 if isinstance(model.observation_model, NegativeBinomialObservations):
                     vals = vals[:1] + [model.observation_model.scale] + vals[1:]
@@ -2657,7 +2655,7 @@ class TestGLMObservationModel:
         # passing params
         model = type(model)(
             observation_model=model.observation_model,
-            solver_name="LBFGS",
+            solver="LBFGS",
             regularizer="UnRegularized",
         )
 
@@ -2673,7 +2671,7 @@ class TestGLMObservationModel:
         assert list(model.get_params().values()) == expected_values
 
         # changing solver
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
 
         expected_values = get_expected_values(model)
         assert set(model.get_params().keys()) == expected_keys
@@ -2693,7 +2691,7 @@ class TestGLMObservationModel:
             model.set_params(
                 regularizer_strength=1.0,
                 regularizer=nmo.regularizer.GroupLasso(mask=mask),
-                solver_name="ProximalGradient",
+                solver="ProximalGradient",
             )
             model.fit(X, y)
         else:
@@ -2868,12 +2866,10 @@ class TestGLMObservationModel:
         assert model.scale_ is not None
 
     @pytest.mark.parametrize("nan_inputs", [True, False])
-    @pytest.mark.parametrize(
-        "solver_name", ["ProximalGradient", "GradientDescent", "LBFGS"]
-    )
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "GradientDescent", "LBFGS"])
     @pytest.mark.solver_related
     def test_update_params_are_finite(
-        self, nan_inputs, solver_name, request, glm_type, model_instantiation
+        self, nan_inputs, solver, request, glm_type, model_instantiation
     ):
         """
         Fitting a GLM to data containing NaNs with the jaxopt.LBFGS solver worked when using GLM.fit,
@@ -2885,7 +2881,7 @@ class TestGLMObservationModel:
         X, y, model, true_params, firing_rate = request.getfixturevalue(
             glm_type + model_instantiation
         )
-        model.solver_name = solver_name
+        model.solver = solver
 
         if nan_inputs:
             X[: X.shape[0] // 2, :] = np.nan
@@ -3016,7 +3012,7 @@ class TestGLMObservationModel:
             glm_type + model_instantiation
         )
         param_grid = {
-            "solver_name": ["BFGS", "GradientDescent", nmo.solvers.OptimistixOptaxLBFGS]
+            "solver": ["BFGS", "GradientDescent", nmo.solvers.OptimistixOptaxLBFGS]
         }
         cls = GridSearchCV(model, param_grid).fit(X, y)
         # check that the repr works after cloning
@@ -3025,7 +3021,7 @@ class TestGLMObservationModel:
     @pytest.mark.parametrize("regr_setup", ["", "_pytree"])
     @pytest.mark.parametrize("key", [jax.random.key(0), jax.random.key(19)])
     @pytest.mark.parametrize(
-        "regularizer_class, solver_name",
+        "regularizer_class, solver",
         [
             (nmo.regularizer.UnRegularized, "SVRG"),
             (nmo.regularizer.Ridge, "SVRG"),
@@ -3043,7 +3039,7 @@ class TestGLMObservationModel:
         regr_setup,
         key,
         regularizer_class,
-        solver_name,
+        solver,
     ):
         """
         Make sure that calling GLM.update with the rest of the algorithm implemented outside in a naive loop
@@ -3075,7 +3071,7 @@ class TestGLMObservationModel:
         glm = type(model)(
             regularizer=reg,
             regularizer_strength=strength,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={
                 "batch_size": batch_size,
                 "stepsize": stepsize,
@@ -3086,7 +3082,7 @@ class TestGLMObservationModel:
         )
         glm2 = type(model)(
             regularizer=reg,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={
                 "batch_size": batch_size,
                 "stepsize": stepsize,
@@ -3145,10 +3141,10 @@ class TestGLMObservationModel:
             (glm2.coef_, glm2.intercept_),
         )
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
     @pytest.mark.solver_related
     def test_glm_fit_matches_sklearn(
-        self, solver_name, request, glm_type, model_instantiation, sklearn_model
+        self, solver, request, glm_type, model_instantiation, sklearn_model
     ):
         """Test that different solvers converge to the same solution."""
         if sklearn_model is None:
@@ -3161,7 +3157,7 @@ class TestGLMObservationModel:
         model = type(model_obs)(
             regularizer=nmo.regularizer.UnRegularized(),
             observation_model=model_obs.observation_model,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={"tol": 10**-12},
         )
 
@@ -3252,7 +3248,7 @@ class TestGLMObservationModel:
         if isinstance(strength, str):
             strength = request.getfixturevalue(strength)
         model.set_params(regularizer=reg, regularizer_strength=strength)
-        model.solver_name = model.regularizer.default_solver
+        model.solver = model.regularizer.default_solver
         model.fit(X, y)
         num = model._estimate_resid_degrees_of_freedom(X, n_samples=n_samples)
         assert np.allclose(num, n_samples - dof - 1)
@@ -3267,7 +3263,7 @@ class TestGLMObservationModel:
         "regularizer", ["UnRegularized", "Ridge", "Lasso", "GroupLasso", "ElasticNet"]
     )
     @pytest.mark.parametrize(
-        "solver_name, has_defaults",
+        "solver, has_defaults",
         [
             ("GradientDescent", False),
             ("LBFGS", False),
@@ -3286,7 +3282,7 @@ class TestGLMObservationModel:
         batch_size,
         stepsize,
         regularizer,
-        solver_name,
+        solver,
         inv_link,
         has_defaults,
         link_has_defaults,
@@ -3307,7 +3303,7 @@ class TestGLMObservationModel:
         # use glm static methods to check if the solver is batchable
         # if not pop the batch_size kwarg
         try:
-            slv_class = nmo.solvers.solver_registry[solver_name]
+            slv_class = nmo.solvers.solver_registry[solver]
             nmo.glm.GLM._check_solver_kwargs(slv_class, solver_kwargs)
         except NameError:
             solver_kwargs.pop("batch_size")
@@ -3316,7 +3312,7 @@ class TestGLMObservationModel:
         try:
             model = nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 inverse_link_function=inv_link,
                 observation_model=obs,
                 solver_kwargs=solver_kwargs,
@@ -3324,7 +3320,7 @@ class TestGLMObservationModel:
             )
         except ValueError as e:
             if not str(e).startswith(
-                rf"The solver: {solver_name} is not allowed for {regularizer} regularization"
+                rf"The solver: {solver} is not allowed for {regularizer} regularization"
             ):
                 raise e
             return
@@ -3616,7 +3612,7 @@ class TestPopulationGLMObservationModel:
         assert mn_n.ndim == 1
 
     @pytest.mark.parametrize(
-        "regularizer, regularizer_strength, solver_name, solver_kwargs",
+        "regularizer, regularizer_strength, solver, solver_kwargs",
         [
             (
                 nmo.regularizer.UnRegularized(),
@@ -3682,7 +3678,7 @@ class TestPopulationGLMObservationModel:
         self,
         regularizer,
         regularizer_strength,
-        solver_name,
+        solver,
         solver_kwargs,
         mask,
         request,
@@ -3720,7 +3716,7 @@ class TestPopulationGLMObservationModel:
             feature_mask=mask,
             regularizer=regularizer,
             regularizer_strength=regularizer_strength,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs=solver_kwargs,
         )
         model = nmo.glm.PopulationGLM(**kwargs)
@@ -3734,7 +3730,7 @@ class TestPopulationGLMObservationModel:
             model_single_neu = nmo.glm.GLM(
                 regularizer=regularizer,
                 regularizer_strength=regularizer_strength,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
             )
             if isinstance(mask_bool, dict):
@@ -3779,7 +3775,7 @@ class TestPoissonGLM:
 
     @pytest.mark.parametrize("reg_setup", ["", "_pytree"])
     @pytest.mark.parametrize(
-        "solver_name, reg",
+        "solver, reg",
         [
             ("SVRG", "Ridge"),
             ("SVRG", "UnRegularized"),
@@ -3799,7 +3795,7 @@ class TestPoissonGLM:
     @pytest.mark.solver_related
     def test_glm_optimal_config_set_initial_state(
         self,
-        solver_name,
+        solver,
         batch_size,
         stepsize,
         reg,
@@ -3823,7 +3819,7 @@ class TestPoissonGLM:
             else:
                 reg = nmo.regularizer.GroupLasso(mask=jnp.ones((1, X.shape[1])))
         model = glm_class(
-            solver_name=solver_name,
+            solver=solver,
             inverse_link_function=jax.nn.softplus,
             solver_kwargs=dict(batch_size=batch_size, stepsize=stepsize),
             observation_model=obs,
@@ -3857,7 +3853,7 @@ class TestPoissonGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name, expected_type_solver",
+        "solver, expected_type_solver",
         [
             ("GradientDescent", type(None)),
             ("ProximalGradient", type(None)),
@@ -3873,7 +3869,7 @@ class TestPoissonGLM:
     def test_optimal_config_outputs(
         self,
         regularizer,
-        solver_name,
+        solver,
         inv_link_func,
         expected_type_convexity,
         expected_type_link,
@@ -3890,13 +3886,13 @@ class TestPoissonGLM:
             model = glm_class(
                 inverse_link_function=inv_link_func,
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 observation_model=obs,
                 regularizer_strength=None if regularizer == "UnRegularized" else 1.0,
             )
         except ValueError as e:
             if not str(e).startswith(
-                rf"The solver: {solver_name} is not allowed for {regularizer} regularization"
+                rf"The solver: {solver} is not allowed for {regularizer} regularization"
             ):
                 raise e
             return
@@ -3907,9 +3903,9 @@ class TestPoissonGLM:
         )
         assert isinstance(func1, expected_type_solver)
         assert isinstance(func2, expected_type_link)
-        assert isinstance(
-            convexity, expected_type_convexity
-        ), f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
+        assert isinstance(convexity, expected_type_convexity), (
+            f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
+        )
 
 
 @pytest.mark.parametrize("inv_link", [jnp.exp, lambda x: 1 / x])

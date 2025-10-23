@@ -637,7 +637,7 @@ def ridge_regularizer():
 
 @pytest.fixture
 def lasso_regularizer():
-    return nmo.regularizer.Lasso(solver_name="ProximalGradient")
+    return nmo.regularizer.Lasso(solver="ProximalGradient")
 
 
 @pytest.fixture
@@ -645,7 +645,7 @@ def group_lasso_2groups_5features_regularizer():
     mask = np.zeros((2, 5))
     mask[0, :2] = 1
     mask[1, 2:] = 1
-    return nmo.regularizer.GroupLasso(solver_name="ProximalGradient", mask=mask)
+    return nmo.regularizer.GroupLasso(solver="ProximalGradient", mask=mask)
 
 
 @pytest.fixture
@@ -1007,7 +1007,7 @@ def negativeBinomialGLM_model_instantiation():
     w_true = np.random.normal(size=(5,))
     observation_model = nmo.observation_models.NegativeBinomialObservations()
     regularizer = nmo.regularizer.UnRegularized()
-    model = nmo.glm.GLM(observation_model, regularizer=regularizer, solver_name="LBFGS")
+    model = nmo.glm.GLM(observation_model, regularizer=regularizer, solver="LBFGS")
     rate = jax.numpy.exp(jax.numpy.einsum("k,tk->t", w_true, X) + b_true)
     r = 1 / model.observation_model.scale
     spikes = np.random.poisson(np.random.gamma(shape=r, size=rate.shape) * (r / rate))
@@ -1039,7 +1039,7 @@ def negativeBinomialGLM_model_instantiation_pytree(
         true_params[1],
     )
     model_tree = nmo.glm.GLM(
-        model.observation_model, regularizer=model.regularizer, solver_name="LBFGS"
+        model.observation_model, regularizer=model.regularizer, solver="LBFGS"
     )
     return X_tree, np.random.poisson(rate), model_tree, true_params_tree, rate
 
@@ -1069,7 +1069,7 @@ def population_negativeBinomialGLM_model_instantiation():
     model = nmo.glm.PopulationGLM(
         observation_model=observation_model,
         regularizer=regularizer,
-        solver_name="LBFGS",
+        solver="LBFGS",
     )
     rate = jnp.exp(jnp.einsum("ki,tk->ti", w_true, X) + b_true)
     spikes = model.observation_model.sample_generator(jax.random.PRNGKey(123), rate)
@@ -1107,7 +1107,7 @@ def population_negativeBinomialGLM_model_instantiation_pytree(
     model_tree = nmo.glm.PopulationGLM(
         observation_model=model.observation_model,
         regularizer=model.regularizer,
-        solver_name="LBFGS",
+        solver="LBFGS",
     )
     return X_tree, np.random.poisson(rate), model_tree, true_params_tree, rate
 
