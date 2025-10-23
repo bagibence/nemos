@@ -16,6 +16,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from nemos.solvers._solver_registry import SolverRegistry
+from nemos.third_party.jaxopt.jaxopt._src.base import Solver
 
 from . import solvers, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regularizer
@@ -110,23 +111,8 @@ class BaseRegressor(Base, abc.ABC):
 
         if solver is None:
             self.solver = cast(Regularizer, self.regularizer).default_solver
-        elif isinstance(solver, str):
-            self.solver = solver
-        elif isinstance(solver, Type):
-            if issubclass(solver, SolverProtocol):
-                # NOTE: test_compatibility_with_sklearn_cv test is important
-                # raise NotImplementedError("Custom solvers are still in the works.")
-                self.solver = solver
-            else:
-                raise ValueError(
-                    f"{solver} is a class, but doesn't implement the SolverProtocol protocol. "
-                    "Please check that the required methods are implemented."
-                )
         else:
-            raise TypeError(
-                f"Type of solver has to be one of None, str, Type[SolverProtocol]."
-                f"Got {type(solver)}."
-            )
+            self.solver = solver
 
         if solver_kwargs is None:
             solver_kwargs = dict()
@@ -270,10 +256,28 @@ class BaseRegressor(Base, abc.ABC):
     @solver.setter
     def solver(self, solver: str | Type[SolverProtocol]):
         """Setter for the solver attribute."""
-        # check if solver str passed is valid for regularizer
-        if isinstance(solver, str) and not solver.endswith("temp"):
+        # fail early if not string or type
+        if not (isinstance(solver, str) or isinstance(solver, Type)):
+            raise TypeError(
+                f"Type of solver has to be one of str, Type[SolverProtocol]."
+                f"Got {type(solver)}."
+            )
+        # fail early if type, but doesn't implement the protocol
+        if isinstance(solver, Type) and not issubclass(solver, SolverProtocol):
+            raise ValueError(
+                f"{solver} is a class, but doesn't implement the SolverProtocol protocol. "
+                "Please check that the required methods are implemented."
+            )
+
+        # at this point it's either string or SolverProtocol
+        if isinstance(solver, str):
             self._regularizer.check_solver(solver)
-        self._solver_name_or_class = solver
+            self._solver_name_or_class = solver
+        elif issubclass(solver, SolverProtocol):
+            # skip regularizer compatibility check
+            self._solver_name_or_class = solver
+        else:
+            raise ValueError(f"Unexpected value ({solver}) of type {type(solver)}.")
 
     @property
     def solver_name(self):
