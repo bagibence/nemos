@@ -151,7 +151,7 @@ class TestGLM:
         # TODO: This test is only required if we keep the solver_name attribute
         glm_class = request.getfixturevalue(glm_class_type)
         model = glm_class(solver=solver)
-        assert model.solver == expectation
+        assert model.solver_name == expectation
 
     def test_non_differentiable_inverse_link(self, request, glm_class_type):
         glm_class = request.getfixturevalue(glm_class_type)
@@ -385,8 +385,8 @@ class TestGLM:
                 "observation_model",
                 "regularizer",
                 "regularizer_strength",
-                "solver_kwargs",
                 "solver",
+                "solver_kwargs",
             }
         else:
             expected_keys = {
@@ -394,8 +394,8 @@ class TestGLM:
                 "observation_model",
                 "regularizer",
                 "regularizer_strength",
-                "solver_kwargs",
                 "solver",
+                "solver_kwargs",
             }
 
         model = glm_class()
@@ -408,8 +408,8 @@ class TestGLM:
                     model.observation_model,
                     model.regularizer,
                     model.regularizer_strength,
-                    model.solver_kwargs,
                     model.solver,
+                    model.solver_kwargs,
                 ]
 
             else:
@@ -418,8 +418,8 @@ class TestGLM:
                     model.observation_model,
                     model.regularizer,
                     model.regularizer_strength,
-                    model.solver_kwargs,
                     model.solver,
+                    model.solver_kwargs,
                 ]
 
         expected_values = get_expected_values(model)
@@ -2621,8 +2621,8 @@ class TestGLMObservationModel:
                     model.observation_model,
                     model.regularizer,
                     model.regularizer_strength,
-                    model.solver_kwargs,
                     model.solver,
+                    model.solver_kwargs,
                 ]
                 if isinstance(model.observation_model, NegativeBinomialObservations):
                     vals = vals[:2] + [model.observation_model.scale] + vals[2:]
@@ -2641,8 +2641,8 @@ class TestGLMObservationModel:
                     model.observation_model,
                     model.regularizer,
                     model.regularizer_strength,
-                    model.solver_kwargs,
                     model.solver,
+                    model.solver_kwargs,
                 ]
                 if isinstance(model.observation_model, NegativeBinomialObservations):
                     vals = vals[:1] + [model.observation_model.scale] + vals[1:]
