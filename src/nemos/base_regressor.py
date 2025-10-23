@@ -79,7 +79,7 @@ class BaseRegressor(Base, abc.ABC):
     regularizer_strength :
         Float that is default None. Sets the regularizer strength. If a user does not pass a value, and it is needed for
         regularization, a warning will be raised and the strength will default to 1.0.
-    solver_name :
+    solver :
         Solver to use for model optimization. Defines the optimization scheme and related parameters.
         The solver must be an appropriate match for the chosen regularizer.
         Default is `None`. If no solver specified, one will be chosen based on the regularizer.
@@ -102,29 +102,30 @@ class BaseRegressor(Base, abc.ABC):
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[RegularizerStrength] = None,
         # TODO: Rename to solver
-        solver_name: Optional[str | Type[SolverProtocol]] = None,
+        solver: Optional[str | Type[SolverProtocol]] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
-        if solver_name is None:
-            self.solver_name = cast(Regularizer, self.regularizer).default_solver
-        elif isinstance(solver_name, str):
-            self.solver_name = solver_name
-        elif isinstance(solver_name, Type):
-            if issubclass(solver_name, SolverProtocol):
+        if solver is None:
+            self.solver = cast(Regularizer, self.regularizer).default_solver
+        elif isinstance(solver, str):
+            self.solver = solver
+        elif isinstance(solver, Type):
+            if issubclass(solver, SolverProtocol):
                 # NOTE: test_compatibility_with_sklearn_cv test is important
-                raise NotImplementedError("Custom solvers are still in the works.")
+                # raise NotImplementedError("Custom solvers are still in the works.")
+                self.solver = solver
             else:
                 raise ValueError(
-                    f"{solver_name} is a class, but doesn't implement the SolverProtocol protocol. "
+                    f"{solver} is a class, but doesn't implement the SolverProtocol protocol. "
                     "Please check that the required methods are implemented."
                 )
         else:
             raise TypeError(
                 f"Type of solver has to be one of None, str, Type[SolverProtocol]."
-                f"Got {type(solver_name)}."
+                f"Got {type(solver)}."
             )
 
         if solver_kwargs is None:
@@ -140,11 +141,11 @@ class BaseRegressor(Base, abc.ABC):
     @property
     def solver_class(self):
         """Fetch the solver implementation."""
-        if isinstance(self.solver_name, str):
-            return solvers.solver_registry[self.solver_name]
+        if isinstance(self.solver, str):
+            return solvers.solver_registry[self.solver]
 
         # the class is stored
-        return self.solver_name
+        return self.solver
 
     def __sklearn_tags__(self):
         """Return regression model specific estimator tags."""
@@ -262,17 +263,24 @@ class BaseRegressor(Base, abc.ABC):
         self._regularizer_strength = strength
 
     @property
-    def solver_name(self) -> str:
-        """Getter for the solver_name attribute."""
-        return self._solver_name
+    def solver(self) -> str | Type[SolverProtocol]:
+        """Getter for the solver attribute."""
+        return self._solver_name_or_class
 
-    @solver_name.setter
-    def solver_name(self, solver_name: str):
-        """Setter for the solver_name attribute."""
+    @solver.setter
+    def solver(self, solver: str | Type[SolverProtocol]):
+        """Setter for the solver attribute."""
         # check if solver str passed is valid for regularizer
-        if isinstance(solver_name, str):
-            self._regularizer.check_solver(solver_name)
-        self._solver_name = solver_name
+        if isinstance(solver, str) and not solver.endswith("temp"):
+            self._regularizer.check_solver(solver)
+        self._solver_name_or_class = solver
+
+    @property
+    def solver_name(self):
+        if isinstance(self.solver, str):
+            return self.solver
+        else:
+            return self.solver.__name__
 
     @property
     def solver_kwargs(self):
@@ -340,7 +348,7 @@ class BaseRegressor(Base, abc.ABC):
             The instance itself for method chaining.
         """
         # final check that solver is valid for chosen regularizer
-        self._regularizer.check_solver(self.solver_name)
+        self._regularizer.check_solver(self.solver)
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
@@ -357,6 +365,7 @@ class BaseRegressor(Base, abc.ABC):
             self.regularizer_strength,
             **solver_kwargs,
         )
+        # TODO: rename this to _solver_instance or something so that it's not confused with the str or class returned by self.solver
         self._solver = solver
 
         # nemos's solvers store a .fun attribute, but it's not necessary for a solver to work.
