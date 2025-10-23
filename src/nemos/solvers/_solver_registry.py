@@ -1,5 +1,8 @@
 """Registry for mapping from solver name to concrete implementation."""
 
+from dataclasses import dataclass, field
+from typing import Type
+
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -8,10 +11,6 @@ from ._jaxopt_solvers import (
     JaxoptProximalGradient,
 )
 from ._svrg import WrappedProxSVRG, WrappedSVRG
-
-
-from dataclasses import dataclass, field
-from typing import Type
 
 
 @dataclass
