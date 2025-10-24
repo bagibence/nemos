@@ -353,7 +353,8 @@ class BaseRegressor(Base, abc.ABC):
             The instance itself for method chaining.
         """
         # final check that solver is valid for chosen regularizer
-        self._regularizer.check_solver(self.solver)
+        if isinstance(self.solver, str):
+            self._regularizer.check_solver(self.solver)
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
@@ -370,7 +371,6 @@ class BaseRegressor(Base, abc.ABC):
             self.regularizer_strength,
             **solver_kwargs,
         )
-        # TODO: rename this to _solver_instance or something so that it's not confused with the str or class returned by self.solver
         self._solver_instance = solver
 
         # nemos's solvers store a .fun attribute, but it's not necessary for a solver to work.
