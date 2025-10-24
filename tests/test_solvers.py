@@ -233,7 +233,7 @@ def test_svrg_glm_initialize_state(
     assert state.reference_point == init_params
 
     for f in (glm._solver_init_state, glm._solver_update, glm._solver_run):
-        assert isinstance(f.__self__._solver_instance, solver_class)
+        assert isinstance(f.__self__._solver, solver_class)
     assert isinstance(state, SVRGState)
 
 
