@@ -4,7 +4,7 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.17.2
+    jupytext_version: 1.18.1
 kernelspec:
   display_name: Python 3 (ipykernel)
   language: python
@@ -180,23 +180,26 @@ class ScipySolver:
         )
 ```
 
+## Checking that `ScipySolver` is compatible with NeMoS
+
+`SolverProtocol` defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
+
+```{code-cell} ipython3
+from nemos.solvers import SolverProtocol
+
+issubclass(ScipySolver, SolverProtocol)
+```
+
+Now let's validate in more detail, checking the number of accepted arguments.
+
+```{code-cell} ipython3
+# TODO: Implement this
+# nemos.solvers.validate_solver(ScipySolver)
+```
+
 # Using `ScipySolver` for model fitting
 
 +++
-
-## Overwriting the registry
-
-Currently, the solver registry defines which implementation to use for each algorithm, so that has to be overwritten in order to tell NeMoS to use a custom class.
-
-This is hacky and not an intended use-case for now, but in the future we are [planning to support passing any solver to `BaseRegressor`](https://github.com/flatironinstitute/nemos/issues/378).
-
-So we modify the solver registry to use this implementation when asking for L-BFGS:
-
-```{code-cell} ipython3
-from nemos.solvers._solver_registry import solver_registry
-
-solver_registry["LBFGS"] = ScipySolver
-```
 
 ## Generate toy data
 
@@ -229,11 +232,11 @@ else:
 
 ## Create the model and fit 
 
-As the solver registry returns our custom `ScipySolver` class when specifying `solver_name="LBFGS"`, `model.fit` will call `ScipySolver.run`. 
+Passing the `ScipySolver` class we created as the solver to `GLM`, it will now use this class as the solver instead of fetching the solver from the registry, and `model.fit` will call `ScipySolver.run`. 
 
 ```{code-cell} ipython3
 model = glm_class(
-    solver_name="LBFGS",
+    solver=ScipySolver,
     solver_kwargs={
         "max_steps": 100,
     },
@@ -245,7 +248,11 @@ model.fit(X, y)
 We can inspect the model to show that it is using `ScipySolver`:
 
 ```{code-cell} ipython3
-print(model._solver)
+# the solver string or class
+print(model.solver)
+# the actual solver instance that is created from the string or class
+print(model._solver_instance)
+# GLM._solver_run (called within GLM.fit) corresponds to this instance's .run method
 print(model._solver_run)
 ```
 
