@@ -1,10 +1,8 @@
 """Registry for mapping from solver name to concrete implementation."""
 
-from dataclasses import dataclass, field
 from typing import Type
 
-from nemos.third_party.jaxopt.jaxopt._src.base import Solver
-
+from ._abstract_solver import SolverProtocol
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -13,8 +11,6 @@ from ._jaxopt_solvers import (
     JaxoptProximalGradient,
 )
 from ._svrg import WrappedProxSVRG, WrappedSVRG
-
-from ._abstract_solver import SolverProtocol
 
 
 @dataclass
@@ -79,7 +75,8 @@ class SolverRegistry:
                 )
         if backend not in algo_versions:
             raise ValueError(
-                f"{backend} backend not available for {algo_name}. Available backends: {self.list_algo_backends(algo_name)}"
+                f"{backend} backend not available for {algo_name}. "
+                f"Available backends: {self.list_algo_backends(algo_name)}"
             )
 
         return algo_versions[backend].implementation
@@ -135,7 +132,8 @@ class SolverRegistry:
 
         if backend not in self._registry[algo_name]:
             raise ValueError(
-                f"{backend} backend not available for {algo_name}. Available backends: {self.list_algo_backends(algo_name)}"
+                f"{backend} backend not available for {algo_name}."
+                f"Available backends: {self.list_algo_backends(algo_name)}"
             )
         self._defaults[algo_name] = backend
 

@@ -15,9 +15,6 @@ import jax.numpy as jnp
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from nemos.solvers._solver_registry import SolverRegistry
-from nemos.third_party.jaxopt.jaxopt._src.base import Solver
-
 from . import solvers, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regularizer
 from .base_class import Base
