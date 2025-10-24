@@ -1,21 +1,23 @@
 """Base class defining the interface for solvers that can be used by `BaseRegressor`."""
 
 import abc
-from typing import Any, Callable, Generic, NamedTuple, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Any, Callable, Generic, Protocol, runtime_checkable
 
 from ..regularizer import Regularizer
 from ..typing import Params, SolverState, StepResult
 
 
-class OptimizationInfo(NamedTuple):
+@dataclass
+class OptimizationInfo:
     """Basic diagnostic information about finished optimization runs."""
 
     # Not all JAXopt solvers store the function value.
     # None means missing value, while NaN usually indicates a diverged optimization
-    function_val: float | None
-    num_steps: int
-    converged: bool
-    reached_max_steps: bool
+    function_val: float | None  #: Function value. Optional as not all solvers store it.
+    num_steps: int  #: Number of optimization steps taken.
+    converged: bool  #: Whether the optimization converged.
+    reached_max_steps: bool  #: Reached the maximum number of allowed steps.
 
 
 class AbstractSolver(abc.ABC, Generic[SolverState]):
