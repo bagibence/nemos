@@ -24,7 +24,7 @@ import nemos as nmo
 # define a ridge regularized glm, with a Gradient descent solver
 model = nmo.glm.GLM(
     regularizer="Ridge",
-    solver_name="GradientDescent"
+    solver="GradientDescent"
 )
 
 # save

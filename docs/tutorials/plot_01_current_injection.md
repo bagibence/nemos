@@ -502,10 +502,12 @@ are interested in reading more details see the [Getting Started with scikit-lear
 To initialize our model, we need to specify the solver, the regularizer, and the observation
 model. All of these are optional.
 
-- `solver_name`: this string specifies the solver algorithm. The default
+- `solver`: this string specifies the solver algorithm. The default
   behavior depends on the regularizer, as each regularization scheme is only
   compatible with a subset of possible solvers. View the [GLM
-  docstring](nemos.glm.GLM) for more details.
+  docstring](nemos.glm.GLM) for more details. Alternatively, advanced users
+  may pass their own solver class. In this case, this has to adhere to the
+  interface defined by `nemos.solvers.AbstractSolver`.
 
 :::{warning}
 
@@ -548,7 +550,7 @@ behave!
 ```{code-cell} ipython3
 # Initialize the model, specifying the solver. we'll accept the defaults
 # for everything else.
-model = nmo.glm.GLM(solver_name="LBFGS")
+model = nmo.glm.GLM(solver="LBFGS")
 ```
 
 Now that we've initialized our model with the optimization parameters, we can
@@ -847,7 +849,7 @@ We'll initialize and create the GLM object in the same way as before, only chang
 the design matrix we pass to the model:
 
 ```{code-cell} ipython3
-history_model = nmo.glm.GLM(solver_name="LBFGS")
+history_model = nmo.glm.GLM(solver="LBFGS")
 history_model.fit(current_history, count)
 ```
 

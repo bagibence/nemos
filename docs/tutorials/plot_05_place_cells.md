@@ -354,7 +354,7 @@ We can now use the Poisson GLM from NeMoS to learn the model.
 ```{code-cell} ipython3
 glm = nmo.glm.GLM(
     solver_kwargs=dict(tol=10**-12),
-    solver_name="LBFGS"
+    solver="LBFGS"
 )
 
 glm.fit(X, count)

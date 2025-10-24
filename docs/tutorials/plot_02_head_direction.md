@@ -292,7 +292,7 @@ Fit the glm to the first half of the recording and visualize the ML weights.
 
 ```{code-cell} ipython3
 # define the GLM object
-model = nmo.glm.GLM(solver_name="LBFGS")
+model = nmo.glm.GLM(solver="LBFGS")
 
 # Fit over the training epochs
 model.fit(
@@ -320,7 +320,7 @@ If we are correct, what would happen if we re-fit the weights on the other half 
 ```{code-cell} ipython3
 # fit on the test set
 
-model_second_half = nmo.glm.GLM(solver_name="LBFGS")
+model_second_half = nmo.glm.GLM(solver="LBFGS")
 model_second_half.fit(
     input_feature.restrict(second_half),
     neuron_count.restrict(second_half)
@@ -466,7 +466,7 @@ Now that we have our "compressed" history feature matrix, we can fit the ML para
 
 ```{code-cell} ipython3
 # use restrict on interval set training
-model_basis = nmo.glm.GLM(solver_name="LBFGS")
+model_basis = nmo.glm.GLM(solver="LBFGS")
 model_basis.fit(conv_spk.restrict(first_half), neuron_count.restrict(first_half))
 ```
 
@@ -504,7 +504,7 @@ Let's check if our new estimate does a better job in terms of over-fitting. We c
 by visual comparison, as we did previously. Let's fit the second half of the dataset.
 
 ```{code-cell} ipython3
-model_basis_second_half = nmo.glm.GLM(solver_name="LBFGS")
+model_basis_second_half = nmo.glm.GLM(solver="LBFGS")
 model_basis_second_half.fit(conv_spk.restrict(second_half), neuron_count.restrict(second_half))
 
 # compute responses for the 2nd half fit
@@ -593,7 +593,7 @@ maximizing each individual term separately (i.e. fitting one neuron at the time)
 ```{code-cell} ipython3
 model = nmo.glm.PopulationGLM(
     regularizer="Ridge",
-    solver_name="LBFGS",
+    solver="LBFGS",
     regularizer_strength=0.1
     ).fit(convolved_count, count)
 ```

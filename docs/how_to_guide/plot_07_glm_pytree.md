@@ -350,7 +350,7 @@ Running the GLM is identical to before, but we can see that our coef_
 FeaturePytree now has two separate keys, one for each feature type.
 
 ```{code-cell} ipython3
-model = nmo.glm.GLM(solver_name="LBFGS")
+model = nmo.glm.GLM(solver="LBFGS")
 model.fit(X, spikes)
 model.coef_
 ```
