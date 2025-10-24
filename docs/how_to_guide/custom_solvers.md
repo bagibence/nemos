@@ -20,7 +20,7 @@ In the following we will walk through how one can create a NeMoS-compatible solv
 
 +++
 
-# Define the `scipy` adapter
+## Define the `scipy` adapter
 
 In order to adhere to the `AbstractSolver` interface, we have to define the following methods in our custom solver class:
 - `__init__`: all solver parameters and settings should go here. The other methods only take the solver state, current or initial solution (model parameters), and the input data for the objective function.
@@ -180,7 +180,7 @@ class ScipySolver:
         )
 ```
 
-## Checking that `ScipySolver` is compatible with NeMoS
+### Checking that `ScipySolver` is compatible with NeMoS
 
 `SolverProtocol` defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
 
@@ -197,11 +197,11 @@ Now let's validate in more detail, checking the number of accepted arguments.
 # nemos.solvers.validate_solver(ScipySolver)
 ```
 
-# Using `ScipySolver` for model fitting
+## Using `ScipySolver` for model fitting
 
 +++
 
-## Generate toy data
+### Generate toy data
 
 ```{code-cell} ipython3
 import nemos as nmo
@@ -230,7 +230,7 @@ else:
     glm_class = nmo.glm.GLM
 ```
 
-## Create the model and fit 
+### Create the model and fit 
 
 Passing the `ScipySolver` class we created as the solver to `GLM`, it will now use this class as the solver instead of fetching the solver from the registry, and `model.fit` will call `ScipySolver.run`. 
 
@@ -256,7 +256,7 @@ print(model._solver_instance)
 print(model._solver_run)
 ```
 
-## Test the update method
+### Test the update method
 
 `model.fit` called `ScipySolver.run` to perform a whole optimization and return the final solution.
 

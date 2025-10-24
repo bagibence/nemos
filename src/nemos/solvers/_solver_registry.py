@@ -35,6 +35,8 @@ class SolverSpec:
 
 @dataclass
 class SolverRegistry:
+    """Registry of optimization algorithms and their implementations."""
+
     # mapping is {algo_name : {backend : implementation}}
     _registry: dict[str, dict[str, SolverSpec]] = field(default_factory=dict)
     # mapping is {algo_name : backend}

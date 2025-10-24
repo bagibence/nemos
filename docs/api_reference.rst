@@ -204,8 +204,11 @@ JAX-based optimizers used for parameter fitting.
     :toctree: generated/solvers
     :nosignatures:
 
+    SolverRegistry
     get_solver_documentation
-    list_available_solvers
+    AbstractSolver
+    SolverProtocol
+    OptimizationInfo
 
 
 The ``nemos.identifiability_constraints`` module

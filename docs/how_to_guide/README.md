@@ -209,4 +209,15 @@ convolve_large_arrays.md
 
 :::
 
+:::{grid-item-card}
+
+
+```{toctree}
+:maxdepth: 2
+
+custom_solvers.md
+```
+
+:::
+
 ::::

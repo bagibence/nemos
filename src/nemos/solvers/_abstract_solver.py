@@ -107,7 +107,7 @@ class AbstractSolver(abc.ABC, Generic[SolverState]):
 @runtime_checkable
 class SolverProtocol(Protocol, Generic[SolverState]):
     """
-    Protocol mirroring the interface of AbstractSolver[SolverState].
+    Protocol mirroring the interface of AbstractSolver.
 
     Implementations can be checked at runtime via isinstance(solver_object, SolverProtocol)
     and issubclass(solver_class, SolverProtocol).
