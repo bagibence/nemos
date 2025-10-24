@@ -1,5 +1,6 @@
 """Registry for mapping from solver name to concrete implementation."""
 
+from dataclasses import dataclass, field
 from typing import Type
 
 from ._abstract_solver import SolverProtocol
