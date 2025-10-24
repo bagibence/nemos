@@ -1247,8 +1247,8 @@ class GLM(BaseRegressor):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
-        solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
         solver: BFGS
+        solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
         >>> # Save the model parameters to a file
         >>> model.save_params("model_params.npz")
         >>> # Load the model from the saved file
@@ -1260,8 +1260,8 @@ class GLM(BaseRegressor):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
-        solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
         solver: BFGS
+        solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
 
         >>> # Saving and loading a custom inverse link function
         >>> model = nmo.glm.GLM(
@@ -1281,8 +1281,8 @@ class GLM(BaseRegressor):
         observation_model: PoissonObservations()
         regularizer: UnRegularized()
         regularizer_strength: None
-        solver_kwargs: {}
         solver: GradientDescent
+        solver_kwargs: {}
         """
 
         # initialize saving dictionary
