@@ -10,7 +10,7 @@ To support flexibility and long-term maintenance, NeMoS now has a backend-agnost
 In particular, NeMoS's solvers interface is designed to be compatible with solvers from JAXopt, Google's [Optax](https://optax.readthedocs.io/en/latest/), and the community-run [Optimistix](https://docs.kidger.site/optimistix/).
 
 ## `AbstractSolver` interface
-This interface is defined by `AbstractSolver` and mostly follows the JAXopt API.
+This interface is defined by [`AbstractSolver`](nemos.solvers._abstract_solver.AbstractSolver) and mostly follows the JAXopt API.
 All solvers implemented in NeMoS are subclasses of `AbstractSolver`, however subclassing is not strictly required for implementing solvers that can be used with NeMoS. (See [custom solvers](#custom-solvers))
 
 The `AbstractSolver` interface requires implementing the following methods:
@@ -90,13 +90,17 @@ Optimistix does not have implementations of Nesterov acceleration, so gradient d
 (Although what Optax calls Nesterov acceleration is not the [original method developed for convex optimization](https://hengshuaiyao.github.io/papers/nesterov83.pdf) but the [version adapted for training deep networks with SGD](https://proceedings.mlr.press/v28/sutskever13.html). JAXopt did implement the original method, and [a port of this is planned to be added to NeMoS](https://github.com/flatironinstitute/nemos/issues/380).)
 
 Available solvers and which implementation they dispatch to are defined in the solver registry.
-A list of available solvers is provided by {py:func}`nemos.solvers.solver_registry.available_solvers`, and extended documentation about each solver can be accessed using {py:func}`nemos.solvers.get_solver_documentation`.
+A list of available solvers is provided by `nemos.solvers.solver_registry.available_solvers`, and extended documentation about each solver can be accessed using {py:func}`nemos.solvers.get_solver_documentation`.
 
 (custom-solvers)=
 ## Custom solvers
-Currently, the solver registry defines the list of available algorithms and their implementation, but in the future we are [planning to support passing any solver to `BaseRegressor`](https://github.com/flatironinstitute/nemos/issues/378).
+The solver registry -- available at `nemos.solvers.solver_registry` -- the list of available algorithms and their implementation.
 
-If someone wants to use their own solver in `nemos`, they just have to write a solver that adheres to the `AbstractSolver` interface, and it should be straightforward to plug in.
+Alternatively, users can use their own solvers to fit NeMoS models, they just have to write a solver that adheres to the `AbstractSolver` interface, and it should be straightforward to plug in.
+Fitting models using this custom solver can be done by passing the class implementing the solver as the `solver` argument to `GLM` (or any `BaseRegressor`).
+Please note that not a solver instance but a class/type has to be passed.
+
+Currently, NeMoS does basic checks validating if the custom solver's compatibility by checking if the required methods are implemented, i.e. if the class implements the [`SolverProtocol`](nemos.solvers.SolverProtocol).
 While it is not necessary, a way to ensure adherence to the interface is subclassing `AbstractSolver`.
 
 ## Stochastic optimization
