@@ -11,12 +11,12 @@ kernelspec:
   name: python3
 ---
 
-# Creating custom solvers for use with NeMoS
+# Using custom solvers
 
 To support flexibility and long-term maintenance, NeMoS now has a backend-agnostic solver interface, allowing the use of solvers from different backend libraries with different interfaces.  
-This also means that users can provide their own solvers, and as long as they adhere to the interface defined by `AbstractSolver`, they should be compatible with NeMoS and can be used for fitting models.
+This also means that users can provide their own solvers, and as long as they adhere to the interface defined by [`AbstractSolver`](nemos.solvers._abstract_solver.AbstractSolver), they should be compatible with NeMoS and can be used for fitting models.
 
-In the following we will walk through how one can create a NeMoS-compatible solver that uses `scipy.optimize.minimize` in the background.
+In the following we will walk through how one can create a NeMoS-compatible solver that uses [`scipy.optimize.minimize`](scipy.optimize.minimize) in the background.
 
 +++
 
@@ -28,7 +28,7 @@ In order to adhere to the `AbstractSolver` interface, we have to define the foll
 - `update`: Take one step of the optimization algorithm.
 - `run`: Run a full optimization.
 - `get_accepted_arguments`: Set of argument names that can be passed to `__init__`.
-- `get_optim_info`: Collect diagnostic information about the optimization run into an `OptimizationInfo` namedtuple.
+- `get_optim_info`: Collect diagnostic information about the optimization run into an [`OptimizationInfo`](nemos.solvers._abstract_solver.OptimizationInfo) namedtuple.
 
 ```{code-cell} ipython3
 import jax
@@ -182,7 +182,7 @@ class ScipySolver:
 
 ### Checking that `ScipySolver` is compatible with NeMoS
 
-`SolverProtocol` defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
+[`SolverProtocol`](nemos.solvers._abstract_solver.SolverProtocol) defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
 
 ```{code-cell} ipython3
 from nemos.solvers import SolverProtocol
