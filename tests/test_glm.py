@@ -3827,7 +3827,7 @@ class TestPoissonGLM:
             regularizer_strength=None if reg == "UnRegularized" else 1.0,
         )
         opt_state = model.initialize_state(X, y, true_params)
-        solver = model._solver
+        solver = model._solver_instance
 
         if stepsize is not None:
             assert opt_state.stepsize == stepsize

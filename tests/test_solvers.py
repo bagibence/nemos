@@ -139,8 +139,8 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
     )
     glm.instantiate_solver()
 
-    # currently glm._solver is a Wrapped(Prox)SVRG
-    solver = glm._solver._solver
+    # currently glm._solver_instance is a Wrapped(Prox)SVRG
+    solver = glm._solver_instance._solver
     assert glm.solver == solver_name
     assert isinstance(solver, solver_class)
 
@@ -175,8 +175,8 @@ def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver, mask, glm_class
     )
     glm.instantiate_solver()
 
-    # currently glm._solver is a Wrapped(Prox)SVRG
-    solver = glm._solver._solver
+    # currently glm._solver_instance is a Wrapped(Prox)SVRG
+    solver = glm._solver_instance._solver
     assert solver.stepsize == solver_kwargs["stepsize"]
     assert solver.maxiter == solver_kwargs["maxiter"]
 
@@ -233,7 +233,7 @@ def test_svrg_glm_initialize_state(
     assert state.reference_point == init_params
 
     for f in (glm._solver_init_state, glm._solver_update, glm._solver_run):
-        assert isinstance(f.__self__._solver, solver_class)
+        assert isinstance(f.__self__._solver_instance, solver_class)
     assert isinstance(state, SVRGState)
 
 
@@ -373,7 +373,7 @@ def test_svrg_glm_fit(
 
     glm.fit(X, y)
 
-    solver = glm._solver
+    solver = glm._solver_instance
     assert solver.maxiter == maxiter
 
     assert solver.get_optim_info(glm.solver_state_).num_steps == maxiter

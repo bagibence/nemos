@@ -370,7 +370,7 @@ class BaseRegressor(Base, abc.ABC):
             **solver_kwargs,
         )
         # TODO: rename this to _solver_instance or something so that it's not confused with the str or class returned by self.solver
-        self._solver = solver
+        self._solver_instance = solver
 
         # nemos's solvers store a .fun attribute, but it's not necessary for a solver to work.
         # A test relies on having _solver_loss_fun saved, so still check and save it if possible.
