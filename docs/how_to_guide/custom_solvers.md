@@ -250,6 +250,8 @@ We can inspect the model to show that it is using `ScipySolver`:
 ```{code-cell} ipython3
 # the solver string or class
 print(model.solver)
+# the solver name is generated from this
+print(model.solver_name)
 # the actual solver instance that is created from the string or class
 print(model._solver_instance)
 # GLM._solver_run (called within GLM.fit) corresponds to this instance's .run method
