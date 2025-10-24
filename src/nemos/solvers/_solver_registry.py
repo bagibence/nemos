@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Type
 
+from nemos.third_party.jaxopt.jaxopt._src.base import Solver
+
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -12,12 +14,14 @@ from ._jaxopt_solvers import (
 )
 from ._svrg import WrappedProxSVRG, WrappedSVRG
 
+from ._abstract_solver import SolverProtocol
+
 
 @dataclass
 class SolverSpec:
     algo_name: str
     backend: str
-    implementation: Type
+    implementation: Type[SolverProtocol]
 
     @property
     def full_name(self) -> str:
@@ -35,7 +39,9 @@ class SolverSpec:
 
 @dataclass
 class SolverRegistry:
+    # mapping is {algo_name : {backend : implementation}}
     _registry: dict[str, dict[str, SolverSpec]] = field(default_factory=dict)
+    # mapping is {algo_name : backend}
     _defaults: dict[str, str] = field(default_factory=dict)
 
     def _parse_name(self, name: str) -> tuple[str, str | None]:
@@ -53,8 +59,7 @@ class SolverRegistry:
         if algo_name not in self._registry:
             raise ValueError(f"No solver registered for algorithm {algo_name}.")
 
-    # TODO: Should the return type be SolverProtocol instead?
-    def get_solver(self, name: str) -> Type:
+    def get_solver(self, name: str) -> Type[SolverProtocol]:
         """Fetch the solver implementation from the registry."""
         algo_name, backend = self._parse_name(name)
 
@@ -79,14 +84,14 @@ class SolverRegistry:
 
         return algo_versions[backend].implementation
 
-    def __getitem__(self, name: str) -> Type:
+    def __getitem__(self, name: str) -> Type[SolverProtocol]:
         """Fetch the solver implementation with nicer syntax."""
         return self.get_solver(name)
 
     def register(
         self,
         algo_name: str,
-        implementation: Type,
+        implementation: Type[SolverProtocol],
         backend: str = "custom",
         replace: bool = False,
         default: bool = False,

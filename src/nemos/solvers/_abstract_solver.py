@@ -109,7 +109,8 @@ class SolverProtocol(Protocol, Generic[SolverState]):
     """
     Protocol mirroring the interface of AbstractSolver[SolverState].
 
-    Implementations can be checked at runtime via isinstance(obj, SolverProtocol).
+    Implementations can be checked at runtime via isinstance(solver_object, SolverProtocol)
+    and issubclass(solver_class, SolverProtocol).
     """
 
     def __init__(

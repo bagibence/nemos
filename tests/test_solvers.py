@@ -341,8 +341,7 @@ def test_svrg_glm_fit(
         use_jaxopt_tol = backend == "jaxopt"
     else:
         use_jaxopt_tol = (
-            "jaxopt"
-            in str(nmo.solvers._solver_registry.solver_registry[solver_name]).lower()
+            "jaxopt" in str(nmo.solvers.solver_registry[solver_name]).lower()
         )
     tol = -1.0 if use_jaxopt_tol else 0.0
     solver_kwargs = {"maxiter": maxiter, "tol": tol}

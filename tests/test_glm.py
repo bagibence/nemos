@@ -148,7 +148,6 @@ class TestGLM:
         ],
     )
     def test_custom_solver_name_set(self, solver, expectation, request, glm_class_type):
-        # TODO: This test is only required if we keep the solver_name attribute
         glm_class = request.getfixturevalue(glm_class_type)
         model = glm_class(solver=solver)
         assert model.solver_name == expectation

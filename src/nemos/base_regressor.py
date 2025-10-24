@@ -102,13 +102,13 @@ class BaseRegressor(Base, abc.ABC):
         self,
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[RegularizerStrength] = None,
-        # TODO: Rename to solver
         solver: Optional[str | Type[SolverProtocol]] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
+        # TODO: Update the typing everywhere
         if solver is None:
             self.solver = cast(Regularizer, self.regularizer).default_solver
         else:
@@ -123,15 +123,6 @@ class BaseRegressor(Base, abc.ABC):
         self._solver_init_state = None
         self._solver_update = None
         self._solver_run = None
-
-    @property
-    def solver_class(self):
-        """Fetch the solver implementation."""
-        if isinstance(self.solver, str):
-            return solvers.solver_registry[self.solver]
-
-        # the class is stored
-        return self.solver
 
     def __sklearn_tags__(self):
         """Return regression model specific estimator tags."""
@@ -281,10 +272,20 @@ class BaseRegressor(Base, abc.ABC):
 
     @property
     def solver_name(self):
+        """Name of the solver."""
         if isinstance(self.solver, str):
             return self.solver
         else:
             return self.solver.__name__
+
+    @property
+    def solver_class(self):
+        """Class implementing the solver."""
+        if isinstance(self.solver, str):
+            return solvers.solver_registry[self.solver]
+
+        # the class is stored
+        return self.solver
 
     @property
     def solver_kwargs(self):
