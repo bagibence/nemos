@@ -279,7 +279,7 @@ class BaseRegressor(Base, abc.ABC):
     def solver_class(self):
         """Class implementing the solver."""
         if isinstance(self.solver, str):
-            return solvers.solver_registry[self.solver]
+            return solvers.solver_registry.get_solver(self.solver)
 
         # the class is stored
         return self.solver
