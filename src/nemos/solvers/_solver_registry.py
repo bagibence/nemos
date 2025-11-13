@@ -84,11 +84,6 @@ def get_solver(name: str) -> Type[SolverProtocol]:
     return algo_versions[backend].implementation
 
 
-def __getitem__(name: str) -> Type[SolverProtocol]:
-    """Fetch the solver implementation with nicer syntax."""
-    return get_solver(name)
-
-
 def register(
     algo_name: str,
     implementation: Type[SolverProtocol],
