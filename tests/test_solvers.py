@@ -141,7 +141,7 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
 
     # currently glm._solver_instance is a Wrapped(Prox)SVRG
     solver = glm._solver_instance._solver
-    assert glm.solver == solver_name
+    assert glm.algo_name == solver_name
     assert isinstance(solver, solver_class)
 
 

@@ -141,7 +141,7 @@ def list_algo_backends(algo_name: str) -> list[str]:
 
 
 # TODO: Add doctest
-# TODO: Return full_name instead of the SolverSpec
+# TODO: Return full_name instead of the SolverSpec?
 def list_available_solvers() -> list[SolverSpec]:
     """List all available solvers."""
     return [

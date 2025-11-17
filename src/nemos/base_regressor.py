@@ -114,7 +114,7 @@ class BaseRegressor(Base, abc.ABC):
         if solver_kwargs is None:
             solver_kwargs = dict()
 
-        self._check_solver_kwargs(self.solver_class, solver_kwargs)
+        self._check_solver_kwargs(self.solver, solver_kwargs)
 
         self.solver_kwargs = solver_kwargs
         self._solver_init_state = None
@@ -237,10 +237,12 @@ class BaseRegressor(Base, abc.ABC):
         self._regularizer_strength = strength
 
     @property
-    def solver(self) -> str | Type[SolverProtocol]:
+    def solver(self) -> Type[SolverProtocol]:
         """Getter for the solver attribute."""
-        return self._solver_name_or_class
+        return self._solver_type
 
+    # TODO: How about storing the SolverSpec instead?
+    # NOTE: Then __init__ has to accept that too
     @solver.setter
     def solver(self, solver: str | Type[SolverProtocol]):
         """Setter for the solver attribute."""
@@ -250,7 +252,7 @@ class BaseRegressor(Base, abc.ABC):
                 f"Type of solver has to be one of str, Type[SolverProtocol]."
                 f"Got {type(solver)}."
             )
-        # fail early if type, but doesn't implement the protocol
+        # fail early with a more informative message if type, but doesn't implement the protocol
         if isinstance(solver, Type) and not issubclass(solver, SolverProtocol):
             raise ValueError(
                 f"{solver} is a class, but doesn't implement the SolverProtocol protocol. "
@@ -260,29 +262,30 @@ class BaseRegressor(Base, abc.ABC):
         # at this point it's either string or SolverProtocol
         if isinstance(solver, str):
             self._regularizer.check_solver(solver)
-            self._solver_name_or_class = solver
+            self._solver_type = solvers.solver_registry.get_solver(solver)
         elif issubclass(solver, SolverProtocol):
             # skip regularizer compatibility check
-            self._solver_name_or_class = solver
+            self._solver_type = solver
         else:
             raise ValueError(f"Unexpected value ({solver}) of type {type(solver)}.")
 
     @property
-    def solver_name(self):
+    def solver_name(self) -> str:
         """Name of the solver."""
-        if isinstance(self.solver, str):
-            return self.solver
-        else:
-            return self.solver.__name__
+        for spec in solvers.solver_registry.list_available_solvers():
+            if spec.implementation == self.solver:
+                return spec.full_name
+
+        return self.solver.__name__
 
     @property
-    def solver_class(self):
-        """Class implementing the solver."""
-        if isinstance(self.solver, str):
-            return solvers.solver_registry.get_solver(self.solver)
+    def algo_name(self) -> str:
+        """Name of the optimization algorithm."""
+        for spec in solvers.solver_registry.list_available_solvers():
+            if spec.implementation == self.solver:
+                return spec.algo_name
 
-        # the class is stored
-        return self.solver
+        return self.solver.__name__
 
     @property
     def solver_kwargs(self):
@@ -293,7 +296,7 @@ class BaseRegressor(Base, abc.ABC):
     def solver_kwargs(self, solver_kwargs: dict):
         """Setter for the solver_kwargs attribute."""
         if solver_kwargs:
-            self._check_solver_kwargs(self.solver_class, solver_kwargs)
+            self._check_solver_kwargs(self.solver, solver_kwargs)
         self._solver_kwargs = solver_kwargs
 
     @staticmethod
@@ -358,7 +361,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_kwargs = deepcopy(self.solver_kwargs)
 
         # instantiate the solver
-        solver_cls = self.solver_class
+        solver_cls = self.solver
 
         self._check_solver_kwargs(solver_cls, solver_kwargs)
 
