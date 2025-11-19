@@ -57,8 +57,8 @@ def _raise_if_not_in_registry(algo_name: str):
         raise ValueError(f"No solver registered for algorithm {algo_name}.")
 
 
-def get_solver(name: str) -> Type[SolverProtocol]:
-    """Fetch the solver implementation from the registry."""
+def get_solver(name: str) -> SolverSpec:
+    """Fetch the solver spec. from the registry."""
     algo_name, backend = _parse_name(name)
 
     # make sure we have the algorithm
@@ -81,7 +81,7 @@ def get_solver(name: str) -> Type[SolverProtocol]:
             f"Available backends: {list_algo_backends(algo_name)}"
         )
 
-    return algo_versions[backend].implementation
+    return algo_versions[backend]
 
 
 def register(

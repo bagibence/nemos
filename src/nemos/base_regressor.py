@@ -15,6 +15,8 @@ import jax.numpy as jnp
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from nemos.solvers._solver_registry import SolverSpec
+
 from . import solvers, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regularizer
 from .base_class import Base
@@ -99,7 +101,7 @@ class BaseRegressor(Base, abc.ABC):
         self,
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[RegularizerStrength] = None,
-        solver: Optional[str | Type[SolverProtocol]] = None,
+        solver: Optional[str | Type[SolverProtocol] | SolverSpec] = None,
         solver_kwargs: Optional[dict] = None,
     ):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
@@ -114,7 +116,7 @@ class BaseRegressor(Base, abc.ABC):
         if solver_kwargs is None:
             solver_kwargs = dict()
 
-        self._check_solver_kwargs(self.solver, solver_kwargs)
+        self._check_solver_kwargs(self.solver.implementation, solver_kwargs)
 
         self.solver_kwargs = solver_kwargs
         self._solver_init_state = None
@@ -237,55 +239,55 @@ class BaseRegressor(Base, abc.ABC):
         self._regularizer_strength = strength
 
     @property
-    def solver(self) -> Type[SolverProtocol]:
+    def solver(self) -> SolverSpec:
         """Getter for the solver attribute."""
-        return self._solver_type
+        return self._solver_spec
 
     # TODO: How about storing the SolverSpec instead?
     # NOTE: Then __init__ has to accept that too
     @solver.setter
-    def solver(self, solver: str | Type[SolverProtocol]):
+    def solver(self, solver: str | Type[SolverProtocol] | SolverSpec):
         """Setter for the solver attribute."""
         # fail early if not string or type
-        if not (isinstance(solver, str) or isinstance(solver, Type)):
+        if not isinstance(solver, (str, Type, SolverSpec)):
             raise TypeError(
-                f"Type of solver has to be one of str, Type[SolverProtocol]."
+                f"Type of solver has to be one of str, Type[SolverProtocol], SolverSpec."
                 f"Got {type(solver)}."
             )
         # fail early with a more informative message if type, but doesn't implement the protocol
-        if isinstance(solver, Type) and not issubclass(solver, SolverProtocol):
+        if (isinstance(solver, Type) and not issubclass(solver, SolverProtocol)) or (
+            isinstance(solver, SolverSpec)
+            and not issubclass(solver.implementation, SolverProtocol)
+        ):
             raise ValueError(
-                f"{solver} is a class, but doesn't implement the SolverProtocol protocol. "
+                f"{solver} doesn't implement the SolverProtocol protocol. "
                 "Please check that the required methods are implemented."
             )
 
         # at this point it's either string or SolverProtocol
         if isinstance(solver, str):
-            self._regularizer.check_solver(solver)
-            self._solver_type = solvers.solver_registry.get_solver(solver)
+            spec = solvers.solver_registry.get_solver(solver)
+            self._regularizer.check_solver(spec.algo_name)
+            self._solver_spec = spec
+        elif isinstance(solver, SolverSpec):
+            self._regularizer.check_solver(solver.algo_name)
+            self._solver_spec = solver
         elif issubclass(solver, SolverProtocol):
             # skip regularizer compatibility check
-            self._solver_type = solver
+            spec = SolverSpec(solver.__name__, "custom", solver)
+            self._solver_spec = spec
         else:
             raise ValueError(f"Unexpected value ({solver}) of type {type(solver)}.")
 
     @property
     def solver_name(self) -> str:
         """Name of the solver."""
-        for spec in solvers.solver_registry.list_available_solvers():
-            if spec.implementation == self.solver:
-                return spec.full_name
-
-        return self.solver.__name__
+        return self.solver.full_name
 
     @property
     def algo_name(self) -> str:
         """Name of the optimization algorithm."""
-        for spec in solvers.solver_registry.list_available_solvers():
-            if spec.implementation == self.solver:
-                return spec.algo_name
-
-        return self.solver.__name__
+        return self.solver.algo_name
 
     @property
     def solver_kwargs(self):
@@ -296,7 +298,7 @@ class BaseRegressor(Base, abc.ABC):
     def solver_kwargs(self, solver_kwargs: dict):
         """Setter for the solver_kwargs attribute."""
         if solver_kwargs:
-            self._check_solver_kwargs(self.solver, solver_kwargs)
+            self._check_solver_kwargs(self.solver.implementation, solver_kwargs)
         self._solver_kwargs = solver_kwargs
 
     @staticmethod
@@ -361,7 +363,7 @@ class BaseRegressor(Base, abc.ABC):
             solver_kwargs = deepcopy(self.solver_kwargs)
 
         # instantiate the solver
-        solver_cls = self.solver
+        solver_cls = self.solver.implementation
 
         self._check_solver_kwargs(solver_cls, solver_kwargs)
 
