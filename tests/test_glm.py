@@ -130,6 +130,11 @@ class TestGLM:
                 nmo.regularizer.Ridge,
                 pytest.raises(ValueError, match="implement the SolverProtocol"),
             ),
+            ("LBFGS[jaxopt]", does_not_raise()),
+            (
+                "LBFGS[random_backend]",
+                pytest.raises(ValueError, match="backend not available"),
+            ),
         ],
     )
     def test_init_solver_type(self, solver, expectation, request, glm_class_type):
