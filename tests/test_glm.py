@@ -143,8 +143,8 @@ class TestGLM:
     @pytest.mark.parametrize(
         "solver, expectation",
         [
-            (nmo.solvers.WrappedSVRG, "WrappedSVRG"),
-            (nmo.solvers.OptimistixBFGS, "OptimistixBFGS"),
+            (nmo.solvers.WrappedSVRG, "WrappedSVRG[custom]"),
+            (nmo.solvers.OptimistixBFGS, "OptimistixBFGS[custom]"),
         ],
     )
     def test_custom_solver_name_set(self, solver, expectation, request, glm_class_type):
