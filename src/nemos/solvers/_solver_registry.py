@@ -30,7 +30,7 @@ class SolverSpec:
             f"{self.__class__.__name__}("
             f"algo_name={self.algo_name!r}, "
             f"backend={self.backend!r}, "
-            f"implementation={self.implementation})"
+            f"implementation={f'{self.implementation.__module__}.{self.implementation.__qualname__}'!r})"
         )
 
 

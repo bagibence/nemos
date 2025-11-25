@@ -609,7 +609,7 @@ class ComplexParam(Base):
             nmo.glm.GLM(inverse_link_function=deepcopy(jax.numpy.exp)),
             None,
             [],
-            "GLM(observation_model=PoissonObservations(), inverse_link_function=<PjitFunction>, regularizer=UnRegularized(), solver='GradientDescent')",
+            "GLM(observation_model=PoissonObservations(), inverse_link_function=<PjitFunction>, regularizer=UnRegularized(), solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')')",
         ),
     ],
 )
@@ -700,7 +700,7 @@ def test_inspect_npz(tmp_path, model_class, monkeypatch, capsys):
         "observation_model      : {'class': 'nemos.observation_models.PoissonObservations'}",
         "regularizer            : {'class': 'nemos.regularizer.Ridge'}",
         "regularizer_strength   : 0.1",
-        "solver                 : BFGS",
+        "solver                 : {'nemos_solver_spec': array(True), 'algo_name': 'BFGS', 'backend': 'jaxopt', 'implementation': 'nemos.solvers._jaxopt_solvers.JaxoptBFGS'}",
         "solver_kwargs          : None",
         "",
         "Model fit parameters",

@@ -2539,27 +2539,27 @@ class TestGLMObservationModel:
         """
         if "poisson" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
             else:
-                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
 
         elif "gamma" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
             else:
-                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
 
         elif "bernoulli" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
             else:
-                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent'\n)"
+                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')\n)"
 
         elif "negative_binomial":
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS'\n)"
+                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS[jaxopt]' - SolverSpec(algo_name='LBFGS', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptLBFGS')\n)"
             else:
-                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS'\n)"
+                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver='LBFGS[jaxopt]' - SolverSpec(algo_name='LBFGS', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptLBFGS')\n)"
 
         else:
             raise ValueError("Unknown model instantiation")
