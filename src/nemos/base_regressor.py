@@ -81,6 +81,7 @@ class BaseRegressor(Base, abc.ABC):
         regularization, a warning will be raised and the strength will default to 1.0.
     solver :
         Solver to use for model optimization. Defines the optimization scheme and related parameters.
+        Can be a registered solver name (str), a `SolverSpec`, or a class implementing `SolverProtocol`.
         The solver must be an appropriate match for the chosen regularizer.
         Default is `None`. If no solver specified, one will be chosen based on the regularizer.
         Please see table above for regularizer/optimizer pairings.
@@ -240,13 +241,18 @@ class BaseRegressor(Base, abc.ABC):
 
     @property
     def solver(self) -> SolverSpec:
-        """Getter for the solver attribute."""
+        """Getter for the solver attribute (always stored as SolverSpec)."""
         return self._solver_spec
 
     @solver.setter
     def solver(self, solver: str | Type[SolverProtocol] | SolverSpec):
-        """Setter for the solver attribute."""
-        # fail early if not string or type
+        """
+        Setter for the solver attribute.
+
+        Accepts a registered solver name (str), a `SolverSpec`, or a class implementing `SolverProtocol`.
+        Solver classes are wrapped into a `SolverSpec` with "custom" as backend.
+        """
+        # fail early if not string, class, or SolverSpec
         if not isinstance(solver, (str, Type, SolverSpec)):
             raise TypeError(
                 f"Type of solver has to be one of str, Type[SolverProtocol], SolverSpec."
@@ -262,7 +268,7 @@ class BaseRegressor(Base, abc.ABC):
                 "Please check that the required methods are implemented."
             )
 
-        # at this point it's either string or SolverProtocol
+        # at this point it's either string, SolverSpec, or SolverProtocol class
         if isinstance(solver, str):
             spec = solvers.solver_registry.get_solver(solver)
             self._regularizer.check_solver(spec.algo_name)
@@ -429,7 +435,6 @@ class BaseRegressor(Base, abc.ABC):
         This function checks the consistency of shapes and dimensions for model
         parameters.
         It ensures that the parameters and data are compatible for the model.
-
         """
         pass
 
