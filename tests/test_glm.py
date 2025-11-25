@@ -111,39 +111,54 @@ class TestGLM:
     # Test model.__init__
     #######################
     @pytest.mark.parametrize(
-        "solver, expectation",
+        "solver, regularizer, expectation",
         [
             # test solver at initialization, where test_regularizers.py tests solvers with set_params
-            (None, does_not_raise()),
-            ("BFGS", does_not_raise()),
-            ("ProximalGradient", does_not_raise()),
-            ("LBFGS", does_not_raise()),
-            ("NonlinearCG", does_not_raise()),
-            ("SVRG", does_not_raise()),
-            ("ProxSVRG", does_not_raise()),
+            (None, "UnRegularized", does_not_raise()),
+            ("BFGS", "UnRegularized", does_not_raise()),
+            ("ProximalGradient", "UnRegularized", does_not_raise()),
+            ("LBFGS", "UnRegularized", does_not_raise()),
+            ("NonlinearCG", "UnRegularized", does_not_raise()),
+            ("SVRG", "UnRegularized", does_not_raise()),
+            ("ProxSVRG", "UnRegularized", does_not_raise()),
             (
                 1,
+                "UnRegularized",
                 pytest.raises(TypeError, match="Type of solver has to be one of"),
             ),
-            (nmo.solvers.WrappedSVRG, does_not_raise()),
+            (nmo.solvers.WrappedSVRG, "UnRegularized", does_not_raise()),
             (
                 nmo.regularizer.Ridge,
+                "UnRegularized",
                 pytest.raises(ValueError, match="implement the SolverProtocol"),
             ),
-            ("LBFGS[jaxopt]", does_not_raise()),
+            ("LBFGS[jaxopt]", "UnRegularized", does_not_raise()),
             (
                 "LBFGS[random_backend]",
+                "UnRegularized",
                 pytest.raises(ValueError, match="backend not available"),
+            ),
+            (
+                "LBFGS[jaxopt]",
+                "Lasso",
+                pytest.raises(ValueError, match="not allowed for Lasso"),
+            ),
+            (
+                "LBFGS",
+                "Lasso",
+                pytest.raises(ValueError, match="not allowed for Lasso"),
             ),
         ],
     )
-    def test_init_solver_type(self, solver, expectation, request, glm_class_type):
+    def test_init_solver_type(
+        self, solver, regularizer, expectation, request, glm_class_type
+    ):
         """
         Test that an error is raised if a non-compatible solver is passed.
         """
         glm_class = request.getfixturevalue(glm_class_type)
         with expectation:
-            glm_class(solver=solver)
+            glm_class(solver=solver, regularizer=regularizer)
 
     @pytest.mark.parametrize(
         "solver, expectation",
