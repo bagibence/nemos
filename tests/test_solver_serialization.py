@@ -57,16 +57,41 @@ class RegistryMismatchSolverV2(_BaseDummySolver):
     pass
 
 
-class _CustomUnRegularized(nmo.regularizer.UnRegularized):
-    """UnRegularized regularizer that allows dummy solvers for testing."""
+@pytest.fixture(autouse=True)
+def allow_dummy_solvers(monkeypatch):
+    """Temporarily allow dummy solvers and clean registry after tests."""
 
-    _allowed_solvers = (
+    # monkeypatch UnRegularized to allow the dummy solvers
+    extra = {
         RegisteredDummySolver.__name__,
         MappedDummySolver.__name__,
         UnregisteredDummySolver.__name__,
         RegistryMismatchSolverV1.__name__,
         RegistryMismatchSolverV2.__name__,
+    }
+    original = nmo.regularizer.UnRegularized._allowed_solvers
+    monkeypatch.setattr(
+        nmo.regularizer.UnRegularized,
+        "_allowed_solvers",
+        original + tuple(s for s in extra if s not in original),
     )
+
+    yield
+    # setup was until here
+    # on teardown remove the custom dummy solvers from the registry
+
+    from nemos.solvers._solver_registry import _registry, _defaults
+
+    for name in extra:
+        if name in _registry and "custom" in _registry[name]:
+            # remove custom dummy implementation
+            _registry[name].pop("custom", None)
+            # if there are no other implementations, remove the algo name
+            if not _registry[name]:
+                _registry.pop(name, None)
+        # if the default implementation was the custom dummy one, remove it
+        if _defaults.get(name) == "custom":
+            _defaults.pop(name, None)
 
 
 @pytest.mark.parametrize("glm_class_type", ["glm_class", "population_glm_class"])
@@ -82,12 +107,11 @@ def test_solver_serialization_with_registered_solver(tmp_path, request, glm_clas
         default=True,
     )
 
-    model = glm_class(solver=RegisteredDummySolver, regularizer=_CustomUnRegularized())
+    model = glm_class(solver=RegisteredDummySolver)
     save_path = tmp_path / "model_solver_registered.npz"
     model.save_params(save_path)
 
-    mapping = {"regularizer": _CustomUnRegularized}
-    loaded = nmo.load_model(save_path, mapping_dict=mapping)
+    loaded = nmo.load_model(save_path)
     assert loaded.solver.implementation is RegisteredDummySolver
     assert loaded.solver.algo_name == RegisteredDummySolver.__name__
     assert loaded.solver.backend == "custom"
@@ -98,14 +122,11 @@ def test_solver_serialization_with_mapping_dict(tmp_path, request, glm_class_typ
     """Custom solver is reconstructed using mapping_dict without registry entry."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    model = glm_class(solver=MappedDummySolver, regularizer=_CustomUnRegularized())
+    model = glm_class(solver=MappedDummySolver)
     save_path = tmp_path / "model_solver_mapping.npz"
     model.save_params(save_path)
 
-    mapping = {
-        "regularizer": _CustomUnRegularized,
-        "solver": MappedDummySolver,
-    }
+    mapping = {"solver": MappedDummySolver}
     loaded = nmo.load_model(save_path, mapping_dict=mapping)
 
     assert loaded.solver.implementation is MappedDummySolver
@@ -118,17 +139,12 @@ def test_solver_serialization_unregistered_raises(tmp_path, request, glm_class_t
     """Loading an unregistered custom solver without mapping raises a clear error."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    model = glm_class(
-        solver=UnregisteredDummySolver, regularizer=_CustomUnRegularized()
-    )
+    model = glm_class(solver=UnregisteredDummySolver)
     save_path = tmp_path / "model_solver_unregistered.npz"
     model.save_params(save_path)
 
-    mapping = {
-        "regularizer": _CustomUnRegularized,
-    }
     with pytest.raises(ValueError, match="Failed to reconstruct solver"):
-        nmo.load_model(save_path, mapping_dict=mapping)
+        nmo.load_model(save_path)
 
 
 @pytest.mark.parametrize("glm_class_type", ["glm_class", "population_glm_class"])
@@ -136,7 +152,6 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
     """Loading should fail if registry implementation differs from saved metadata."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    # register V1 and save a model using it
     solver_registry.register(
         RegistryMismatchSolverV1.__name__,
         RegistryMismatchSolverV1,
@@ -144,13 +159,10 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
         replace=True,
         default=True,
     )
-    model = glm_class(
-        solver=RegistryMismatchSolverV1, regularizer=_CustomUnRegularized()
-    )
+    model = glm_class(solver=RegistryMismatchSolverV1)
     save_path = tmp_path / "model_solver_mismatch.npz"
     model.save_params(save_path)
 
-    # replace V1's registry entry with V2, so load will detect mismatch
     solver_registry.register(
         RegistryMismatchSolverV1.__name__,
         RegistryMismatchSolverV2,
@@ -159,9 +171,8 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
         default=True,
     )
 
-    mapping = {"regularizer": _CustomUnRegularized}
     with pytest.raises(
         ValueError,
         match="Mismatch between saved solver implementation and registry entry",
     ):
-        nmo.load_model(save_path, mapping_dict=mapping)
+        nmo.load_model(save_path)
