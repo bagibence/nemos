@@ -13,6 +13,7 @@ from sklearn.linear_model import GammaRegressor, PoissonRegressor
 from statsmodels.tools.sm_exceptions import DomainWarning
 
 import nemos as nmo
+from nemos import regularizer
 
 # Register every test here as solver-related
 pytestmark = pytest.mark.solver_related
@@ -194,6 +195,49 @@ def test_item_assignment_allowed_solvers(regularizer):
         TypeError, match="'tuple' object does not support item assignment"
     ):
         regularizer.allowed_solvers[0] = "my-favourite-solver"
+
+
+@pytest.mark.parametrize(
+    "regularizer_class",
+    [
+        nmo.regularizer.UnRegularized,
+        nmo.regularizer.Ridge,
+        nmo.regularizer.Lasso,
+        nmo.regularizer.ElasticNet,
+        nmo.regularizer.GroupLasso,
+    ],
+)
+def test_allow_solver(regularizer_class):
+    """allow_solver should update the class-level tuple for all instances."""
+    new_solver = "MyCoolNewAlgorithm"
+    original_allowed = regularizer_class._allowed_solvers
+
+    reg1 = regularizer_class()
+    reg2 = regularizer_class()
+
+    # by default it's not allowed
+    assert new_solver not in reg1.allowed_solvers
+    assert new_solver not in reg2.allowed_solvers
+
+    try:
+        # register and allow the this solver
+        # using JaxoptLBFGS just as a dummy that implements the solver interface
+        nmo.solvers.register(new_solver, nmo.solvers.JaxoptLBFGS, default=True)
+        regularizer_class.allow_solver(new_solver)
+
+        assert new_solver in reg1.allowed_solvers
+        assert new_solver in reg2.allowed_solvers
+        assert new_solver in regularizer_class().allowed_solvers
+
+        with does_not_raise():
+            reg1.check_solver(new_solver)
+            model = nmo.glm.GLM(regularizer=reg1, solver=new_solver)
+            assert model.solver.algo_name == new_solver
+    finally:
+        # reset to avoid leaking the extra solver into other tests
+        regularizer_class._allowed_solvers = original_allowed
+        nmo.solvers._solver_registry._registry.pop("MyCoolNewAlgorithm")
+        nmo.solvers._solver_registry._defaults.pop("MyCoolNewAlgorithm")
 
 
 @pytest.mark.parametrize(
