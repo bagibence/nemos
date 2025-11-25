@@ -16,6 +16,16 @@ from ._svrg import WrappedProxSVRG, WrappedSVRG
 
 @dataclass
 class SolverSpec:
+    """
+    Solver specification representing an entry in the solver registry.
+
+    A solver is specified by:
+    - name of the algorithm it implements
+    - its backend (optimization library or custom)
+    - the class implementing the optimization method
+      (ideally compatible with the AbstractSolver and SolverProtocol interface)
+    """
+
     algo_name: str
     backend: str
     implementation: Type[SolverProtocol]
@@ -58,7 +68,19 @@ def _raise_if_not_in_registry(algo_name: str):
 
 
 def get_solver(name: str) -> SolverSpec:
-    """Fetch the solver spec. from the registry."""
+    """
+    Fetch the solver spec. from the registry for a given solver.
+
+    Parameters
+    ----------
+    name :
+        Name of the solver with or without backend specified.
+
+    Returns
+    -------
+    spec :
+        Specification for the solver, listing algorithm name, backend, implementation class.
+    """
     algo_name, backend = _parse_name(name)
 
     # make sure we have the algorithm
@@ -90,23 +112,25 @@ def register(
     backend: str = "custom",
     replace: bool = False,
     default: bool = False,
-):
+) -> None:
     """
     Register a solver implementation in the registry.
 
-    algo_name:
+    Parameters
+    ----------
+    algo_name :
         Name of the optimization algorithm.
-    implementation:
+    implementation :
         Class implementing the solver.
         Has to adhere to the AbstractSolver interface.
-    backend:
+    backend :
         Backend name. Defaults to "custom".
         When wrapping and registering an existing solver from an external
         package, this would be the package name.
-    replace:
+    replace :
         If an implementation for the given algorithm and backend names
         is already present in the registry, overwrite it.
-    default:
+    default :
         Set this implementation as the default for the algorithm.
         Can also be done with `set_default`.
     """
@@ -123,8 +147,18 @@ def register(
         set_default(algo_name, backend)
 
 
-def set_default(algo_name: str, backend: str):
-    """Set the default backend for a given algorithm."""
+def set_default(algo_name: str, backend: str) -> None:
+    """
+    Set the default backend for a given algorithm.
+
+    Parameters
+    ----------
+    algo_name :
+        Name of the optimization algorithm whose default
+        backend to set.
+    backend :
+        Name of the backend to set as default.
+    """
     _raise_if_not_in_registry(algo_name)
 
     if backend not in _registry[algo_name]:
@@ -136,7 +170,14 @@ def set_default(algo_name: str, backend: str):
 
 
 def list_algo_backends(algo_name: str) -> list[str]:
-    """List the available backend for an algorithm."""
+    """
+    List the available backends for an algorithm.
+
+    Parameters
+    ----------
+    algo_name :
+        Name of the optimization algorithm.
+    """
     return list(_registry[algo_name].keys())
 
 
