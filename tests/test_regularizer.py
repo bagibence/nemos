@@ -18,6 +18,33 @@ import nemos as nmo
 pytestmark = pytest.mark.solver_related
 
 
+@pytest.fixture(scope="module", autouse=True)
+def register_deregister_agradientdescent():
+    """Fixture for registering and deregisterin AGradientDescent."""
+    name = "AGradientDescent"
+
+    # register a random solver under this name
+    nmo.solvers.solver_registry.register(
+        name,
+        nmo.solvers.solver_registry.get_solver("LBFGS").implementation,
+        backend="custom",
+    )
+
+    yield
+
+    from nemos.solvers._solver_registry import _registry, _defaults
+
+    if name in _registry and "custom" in _registry[name]:
+        # remove custom dummy implementation
+        _registry[name].pop("custom", None)
+        # if there are no other implementations, remove the algo name
+        if not _registry[name]:
+            _registry.pop(name, None)
+    # if the default implementation was the custom dummy one, remove it
+    if _defaults.get(name) == "custom":
+        _defaults.pop(name, None)
+
+
 @pytest.mark.parametrize(
     "reg_str, reg_type",
     [
