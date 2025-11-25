@@ -270,7 +270,7 @@ class BaseRegressor(Base, abc.ABC):
 
         # at this point it's either string, SolverSpec, or SolverProtocol class
         if isinstance(solver, str):
-            spec = solvers.solver_registry.get_solver(solver)
+            spec = solvers.get_solver(solver)
             self._regularizer.check_solver(spec.algo_name)
             self._solver_spec = spec
         elif isinstance(solver, SolverSpec):

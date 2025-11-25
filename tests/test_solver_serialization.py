@@ -3,7 +3,6 @@
 import pytest
 
 import nemos as nmo
-from nemos.solvers import solver_registry
 from nemos.solvers._abstract_solver import OptimizationInfo
 
 # include in solver-related tests
@@ -99,7 +98,7 @@ def test_solver_serialization_with_registered_solver(tmp_path, request, glm_clas
     """Custom solver is reconstructed when registered in the solver registry."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    solver_registry.register(
+    nmo.solvers._solver_registry.register(
         RegisteredDummySolver.__name__,
         RegisteredDummySolver,
         backend="custom",
@@ -152,7 +151,7 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
     """Loading should fail if registry implementation differs from saved metadata."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    solver_registry.register(
+    nmo.solvers._solver_registry.register(
         RegistryMismatchSolverV1.__name__,
         RegistryMismatchSolverV1,
         backend="custom",
@@ -163,7 +162,7 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
     save_path = tmp_path / "model_solver_mismatch.npz"
     model.save_params(save_path)
 
-    solver_registry.register(
+    nmo.solvers._solver_registry.register(
         RegistryMismatchSolverV1.__name__,
         RegistryMismatchSolverV2,
         backend="custom",

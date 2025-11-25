@@ -24,9 +24,9 @@ def register_deregister_agradientdescent():
     name = "AGradientDescent"
 
     # register a random solver under this name
-    nmo.solvers.solver_registry.register(
+    nmo.solvers._solver_registry.register(
         name,
-        nmo.solvers.solver_registry.get_solver("LBFGS").implementation,
+        nmo.solvers._solver_registry.get_solver("LBFGS").implementation,
         backend="custom",
     )
 

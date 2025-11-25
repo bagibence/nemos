@@ -3,8 +3,7 @@ import re
 from pydoc import render_doc
 from typing import Type
 
-from . import _solver_registry as solver_registry
-from ._solver_registry import SolverSpec
+from ._solver_registry import SolverSpec, get_solver
 
 
 def get_solver_documentation(
@@ -44,7 +43,7 @@ def get_solver_documentation(
     ...
     """
     if isinstance(solver, str):
-        solver = solver_registry.get_solver(solver)
+        solver = get_solver(solver)
 
     if isinstance(solver, SolverSpec):
         solver = solver.implementation

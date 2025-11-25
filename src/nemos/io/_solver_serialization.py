@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, Tuple
 
-from ..solvers import solver_registry
+from ..solvers import _solver_registry
 from ..utils import _get_name
 
 
@@ -22,7 +22,7 @@ def serialize_solver_spec(spec) -> Tuple[bool, Any]:
         Tuple flagging whether the value was handled, and the serialized value if so.
         If not handled, returns (False, spec).
     """
-    if not isinstance(spec, solver_registry.SolverSpec):
+    if not isinstance(spec, _solver_registry.SolverSpec):
         return False, spec
 
     return True, {
@@ -65,17 +65,17 @@ def deserialize_solver_spec(
                 "Invalid map parameter types detected. "
                 "Only classes or callables can be mapped for 'solver'."
             )
-        return solver_registry.SolverSpec(
+        return _solver_registry.SolverSpec(
             mapped_solver.__name__, "custom", mapped_solver
         )
 
     try:
-        spec = solver_registry.get_solver(f"{algo_name}[{backend}]")
+        spec = _solver_registry.get_solver(f"{algo_name}[{backend}]")
     except Exception as exc:
         raise ValueError(
             "Failed to reconstruct solver from saved file. "
             "If you saved a custom solver, please either register it with "
-            "`nemos.solvers.solver_registry.register` before loading or "
+            "`nemos.solvers.register` before loading or "
             "provide `mapping_dict={'solver': CustomSolverClass}` when calling "
             f"`nmo.load_model('{filename}')`."
         ) from exc

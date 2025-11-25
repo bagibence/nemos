@@ -340,9 +340,7 @@ def test_svrg_glm_fit(
     if backend is not None:
         use_jaxopt_tol = backend == "jaxopt"
     else:
-        use_jaxopt_tol = (
-            "jaxopt" in str(nmo.solvers.solver_registry.get_solver(solver_name)).lower()
-        )
+        use_jaxopt_tol = "jaxopt" in str(nmo.solvers.get_solver(solver_name)).lower()
     tol = -1.0 if use_jaxopt_tol else 0.0
     solver_kwargs = {"maxiter": maxiter, "tol": tol}
 
@@ -625,7 +623,7 @@ def test_svrg_wrong_shapes(shapes, expected_context):
 
 def test_all_solvers_accept_tol_and_not_atol():
     """All solvers should accept tol and not accept atol."""
-    for spec in nmo.solvers.solver_registry.list_available_solvers():
+    for spec in nmo.solvers.list_available_solvers():
         solver_class = spec.implementation
         assert "tol" in solver_class.get_accepted_arguments()
         assert "atol" not in solver_class.get_accepted_arguments()
@@ -633,7 +631,7 @@ def test_all_solvers_accept_tol_and_not_atol():
 
 def test_all_solvers_accept_maxiter_and_not_max_steps():
     """All solvers should accept maxiter and not accept max_steps."""
-    for spec in nmo.solvers.solver_registry.list_available_solvers():
+    for spec in nmo.solvers.list_available_solvers():
         solver_class = spec.implementation
         assert "maxiter" in solver_class.get_accepted_arguments()
         assert "max_steps" not in solver_class.get_accepted_arguments()
