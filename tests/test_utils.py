@@ -609,7 +609,7 @@ class ComplexParam(Base):
             nmo.glm.GLM(inverse_link_function=deepcopy(jax.numpy.exp)),
             None,
             [],
-            "GLM(observation_model=PoissonObservations(), inverse_link_function=<PjitFunction>, regularizer=UnRegularized(), solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent')')",
+            "GLM(observation_model=PoissonObservations(), inverse_link_function=<PjitFunction>, regularizer=UnRegularized(), solver='GradientDescent[jaxopt]' - SolverSpec(algo_name='GradientDescent', backend='jaxopt', implementation='nemos.solvers._jaxopt_solvers.JaxoptGradientDescent'))",
         ),
     ],
 )
