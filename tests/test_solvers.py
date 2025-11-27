@@ -141,7 +141,7 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
 
     # currently glm._solver is a Wrapped(Prox)SVRG
     solver = glm._solver._solver
-    assert glm.solver_name == solver_name
+    assert glm.algo_name == solver_name
     assert isinstance(solver, solver_class)
 
 
@@ -623,13 +623,13 @@ def test_svrg_wrong_shapes(shapes, expected_context):
 
 def test_all_solvers_accept_tol_and_not_atol():
     """All solvers should accept tol and not accept atol."""
-    for solver_class in nmo.solvers._solver_registry._solver_registry.values():
-        assert "tol" in solver_class.get_accepted_arguments()
-        assert "atol" not in solver_class.get_accepted_arguments()
+    for spec in nmo.solvers.list_available_solvers():
+        assert "tol" in spec.implementation.get_accepted_arguments()
+        assert "atol" not in spec.implementation.get_accepted_arguments()
 
 
 def test_all_solvers_accept_maxiter_and_not_max_steps():
     """All solvers should accept maxiter and not accept max_steps."""
-    for solver_class in nmo.solvers._solver_registry._solver_registry.values():
-        assert "maxiter" in solver_class.get_accepted_arguments()
-        assert "max_steps" not in solver_class.get_accepted_arguments()
+    for spec in nmo.solvers.list_available_solvers():
+        assert "maxiter" in spec.implementation.get_accepted_arguments()
+        assert "max_steps" not in spec.implementation.get_accepted_arguments()
