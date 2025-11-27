@@ -245,6 +245,9 @@ class BaseRegressor(Base, abc.ABC):
     @solver_name.setter
     def solver_name(self, solver_name: str):
         """Setter for the solver_name attribute."""
+        if not isinstance(solver_name, str):
+            raise TypeError("solver_name must be a string.")
+
         # check if solver str passed is valid for regularizer
         spec = solvers.get_solver(solver_name)
         self._regularizer.check_solver(spec.algo_name)
