@@ -16,9 +16,9 @@ from ._optimistix_solvers import OptimistixBFGS, OptimistixNonlinearCG
 from ._solver_doc_helper import get_solver_documentation
 from ._solver_registry import (
     get_solver,
+    list_available_algorithms,
     list_available_solvers,
     register,
-    list_available_algorithms,
 )
 from ._svrg import SVRG, ProxSVRG, WrappedProxSVRG, WrappedSVRG
 from ._svrg_defaults import (
