@@ -10,12 +10,38 @@ import pytest
 import statsmodels.api as sm
 from scipy.optimize import minimize
 from sklearn.linear_model import GammaRegressor, PoissonRegressor
-from statsmodels.tools.sm_exceptions import DomainWarning
 
 import nemos as nmo
 
 # Register every test here as solver-related
 pytestmark = pytest.mark.solver_related
+
+
+@pytest.fixture(scope="module", autouse=True)
+def register_deregister_agradientdescent():
+    """Fixture for registering and deregistering AGradientDescent."""
+    name = "AGradientDescent"
+
+    # register a random solver under this name
+    nmo.solvers._solver_registry.register(
+        name,
+        nmo.solvers._solver_registry.get_solver("LBFGS").implementation,
+        backend="custom",
+    )
+
+    yield
+
+    from nemos.solvers._solver_registry import _registry, _defaults
+
+    if name in _registry and "custom" in _registry[name]:
+        # remove custom dummy implementation
+        _registry[name].pop("custom", None)
+        # if there are no other implementations, remove the algo name
+        if not _registry[name]:
+            _registry.pop(name, None)
+    # if the default implementation was the custom dummy one, remove it
+    if _defaults.get(name) == "custom":
+        _defaults.pop(name, None)
 
 
 @pytest.mark.parametrize(
@@ -164,9 +190,52 @@ def test_get_only_allowed_solvers(regularizer):
 )
 def test_item_assignment_allowed_solvers(regularizer):
     with pytest.raises(
-        TypeError, match="'set' object does not support item assignment"
+        TypeError, match="'tuple' object does not support item assignment"
     ):
         regularizer.allowed_solvers[0] = "my-favourite-solver"
+
+
+@pytest.mark.parametrize(
+    "regularizer_class",
+    [
+        nmo.regularizer.UnRegularized,
+        nmo.regularizer.Ridge,
+        nmo.regularizer.Lasso,
+        nmo.regularizer.ElasticNet,
+        nmo.regularizer.GroupLasso,
+    ],
+)
+def test_allow_solver(regularizer_class):
+    """allow_solver should update the class-level tuple for all instances."""
+    new_solver = "MyCoolNewAlgorithm"
+    original_allowed = regularizer_class._allowed_solvers
+
+    reg1 = regularizer_class()
+    reg2 = regularizer_class()
+
+    # by default it's not allowed
+    assert new_solver not in reg1.allowed_solvers
+    assert new_solver not in reg2.allowed_solvers
+
+    try:
+        # register and allow the this solver
+        # using JaxoptLBFGS just as a dummy that implements the solver interface
+        nmo.solvers.register(new_solver, nmo.solvers.JaxoptLBFGS, default=True)
+        regularizer_class.allow_solver(new_solver)
+
+        assert new_solver in reg1.allowed_solvers
+        assert new_solver in reg2.allowed_solvers
+        assert new_solver in regularizer_class().allowed_solvers
+
+        with does_not_raise():
+            reg1.check_solver(new_solver)
+            model = nmo.glm.GLM(regularizer=reg1, solver_name=new_solver)
+            assert model.algo_name == new_solver
+    finally:
+        # reset to avoid leaking the extra solver into other tests
+        regularizer_class._allowed_solvers = original_allowed
+        nmo.solvers._solver_registry._registry.pop("MyCoolNewAlgorithm")
+        nmo.solvers._solver_registry._defaults.pop("MyCoolNewAlgorithm")
 
 
 @pytest.mark.parametrize(
@@ -245,70 +314,50 @@ class TestUnRegularized:
     cls = nmo.regularizer.UnRegularized
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", does_not_raise()),
+            ("BFGS", does_not_raise()),
+            ("ProximalGradient", does_not_raise()),
+            (
+                "AGradientDescent",
+                pytest.raises(
+                    ValueError,
+                    match="The solver: AGradientDescent is not allowed for",
+                ),
+            ),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", does_not_raise()),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name):
+    def test_init_solver_name(self, solver_name, expectation):
         """Test UnRegularized acceptable solvers."""
-        acceptable_solvers = [
-            "GradientDescent",
-            "BFGS",
-            "LBFGSB",
-            "NonlinearCG",
-            "ProximalGradient",
-            "SVRG",
-            "ProxSVRG",
-        ]
-
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
-        else:
+        with expectation:
             nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", does_not_raise()),
+            ("BFGS", does_not_raise()),
+            ("ProximalGradient", does_not_raise()),
+            (
+                "AGradientDescent",
+                pytest.raises(
+                    ValueError, match="The solver: AGradientDescent is not allowed for"
+                ),
+            ),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", does_not_raise()),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name):
+    def test_set_solver_name_allowed(self, solver_name, expectation):
         """Test UnRegularized acceptable solvers."""
-        acceptable_solvers = [
-            "GradientDescent",
-            "BFGS",
-            "LBFGS",
-            "NonlinearCG",
-            "ProximalGradient",
-            "SVRG",
-            "ProxSVRG",
-        ]
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer)
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                model.set_params(solver_name=solver_name)
-        else:
+        with expectation:
             model.set_params(solver_name=solver_name)
 
     def test_regularizer_strength_none(self):
@@ -594,39 +643,26 @@ class TestRidge:
     cls = nmo.regularizer.Ridge
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", does_not_raise()),
+            ("BFGS", does_not_raise()),
+            ("ProximalGradient", does_not_raise()),
+            (
+                "AGradientDescent",
+                pytest.raises(
+                    ValueError,
+                    match="The solver: AGradientDescent is not allowed for",
+                ),
+            ),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", does_not_raise()),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name):
-        """Test RidgeSolver acceptable solvers."""
-        acceptable_solvers = [
-            "GradientDescent",
-            "BFGS",
-            "LBFGS",
-            "NonlinearCG",
-            "ProximalGradient",
-            "SVRG",
-            "ProxSVRG",
-        ]
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                nmo.glm.GLM(
-                    regularizer=self.cls(),
-                    solver_name=solver_name,
-                    regularizer_strength=1.0,
-                )
-        else:
+    def test_init_solver_name(self, solver_name, expectation):
+        """Test Ridge acceptable solvers."""
+        with expectation:
             nmo.glm.GLM(
                 regularizer=self.cls(),
                 solver_name=solver_name,
@@ -634,38 +670,27 @@ class TestRidge:
             )
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", does_not_raise()),
+            ("BFGS", does_not_raise()),
+            ("ProximalGradient", does_not_raise()),
+            (
+                "AGradientDescent",
+                pytest.raises(
+                    ValueError, match="The solver: AGradientDescent is not allowed for"
+                ),
+            ),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", does_not_raise()),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name):
-        """Test RidgeSolver acceptable solvers."""
-        acceptable_solvers = [
-            "GradientDescent",
-            "BFGS",
-            "LBFGS",
-            "LBFGSB",
-            "NonlinearCG",
-            "ProximalGradient",
-            "SVRG",
-            "ProxSVRG",
-        ]
+    def test_set_solver_name_allowed(self, solver_name, expectation):
+        """Test UnRegularized acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1.0)
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                model.set_params(solver_name=solver_name)
-        else:
+        with expectation:
             model.set_params(solver_name=solver_name)
 
     @pytest.mark.parametrize("solver_name", ["GradientDescent", "BFGS", "SVRG"])
@@ -869,65 +894,41 @@ class TestLasso:
     cls = nmo.regularizer.Lasso
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
+            ("ProximalGradient", does_not_raise()),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name):
+    def test_init_solver_name(self, solver_name, expectation):
         """Test Lasso acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                nmo.glm.GLM(
-                    regularizer=self.cls(),
-                    solver_name=solver_name,
-                    regularizer_strength=1,
-                )
-        else:
+        with expectation:
             nmo.glm.GLM(
                 regularizer=self.cls(), solver_name=solver_name, regularizer_strength=1
             )
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
+            ("ProximalGradient", does_not_raise()),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name):
+    def test_set_solver_name_allowed(self, solver_name, expectation):
         """Test Lasso acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1)
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                model.set_params(solver_name=solver_name)
-        else:
+        with expectation:
             model.set_params(solver_name=solver_name)
 
     @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
@@ -1098,34 +1099,20 @@ class TestElasticNet:
     cls = nmo.regularizer.ElasticNet
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
+            ("ProximalGradient", does_not_raise()),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name):
-        """Test ElasticNet acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                nmo.glm.GLM(
-                    regularizer=self.cls(),
-                    solver_name=solver_name,
-                    regularizer_strength=(1, 0.5),
-                )
-        else:
+    def test_init_solver_name(self, solver_name, expectation):
+        """Test Lasso acceptable solvers."""
+        with expectation:
             nmo.glm.GLM(
                 regularizer=self.cls(),
                 solver_name=solver_name,
@@ -1133,32 +1120,22 @@ class TestElasticNet:
             )
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
+            ("ProximalGradient", does_not_raise()),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name):
-        """Test ElasticNet acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
+    def test_set_solver_name_allowed(self, solver_name, expectation):
+        """Test Lasso acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=(1, 0.5))
-        raise_exception = solver_name not in acceptable_solvers
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                model.set_params(solver_name=solver_name)
-        else:
+        with expectation:
             model.set_params(solver_name=solver_name)
 
     @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
@@ -1456,24 +1433,20 @@ class TestGroupLasso:
     cls = nmo.regularizer.GroupLasso
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("ProximalGradient", does_not_raise()),
+            ("ProxSVRG", does_not_raise()),
+            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
+            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("LBFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="not allowed for")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
         ],
     )
-    def test_init_solver_name(self, solver_name):
+    def test_init_solver_name(self, solver_name, expectation):
         """Test GroupLasso acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
-        raise_exception = solver_name not in acceptable_solvers
 
         # create a valid mask
         mask = np.zeros((2, 10))
@@ -1481,16 +1454,7 @@ class TestGroupLasso:
         mask[1, 5:] = 1
         mask = jnp.asarray(mask)
 
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                nmo.glm.GLM(
-                    regularizer=self.cls(mask=mask),
-                    solver_name=solver_name,
-                    regularizer_strength=1,
-                )
-        else:
+        with expectation:
             nmo.glm.GLM(
                 regularizer=self.cls(mask=mask),
                 solver_name=solver_name,
@@ -1498,37 +1462,27 @@ class TestGroupLasso:
             )
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver_name, expectation",
         [
-            "GradientDescent",
-            "BFGS",
-            "ProximalGradient",
-            "AGradientDescent",
-            1,
-            "SVRG",
-            "ProxSVRG",
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
+            ("ProximalGradient", does_not_raise()),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="solver_name must be a string.")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
+            ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name):
-        """Test GroupLassoSolver acceptable solvers."""
-        acceptable_solvers = [
-            "ProximalGradient",
-            "ProxSVRG",
-        ]
+    def test_set_solver_name_allowed(self, solver_name, expectation):
+        """Test Lasso acceptable solvers."""
         # create a valid mask
         mask = np.zeros((2, 10))
         mask[0, :5] = 1
         mask[1, 5:] = 1
         mask = jnp.asarray(mask)
         regularizer = self.cls(mask=mask)
-        raise_exception = solver_name not in acceptable_solvers
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1)
-        if raise_exception:
-            with pytest.raises(
-                ValueError, match=f"The solver: {solver_name} is not allowed for "
-            ):
-                model.set_params(solver_name=solver_name)
-        else:
+        with expectation:
             model.set_params(solver_name=solver_name)
 
     @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
