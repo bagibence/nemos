@@ -274,11 +274,17 @@ class BaseRegressor(Base, abc.ABC):
             self._regularizer.check_solver(spec.algo_name)
             self._solver_spec = spec
         elif isinstance(solver, SolverSpec):
+            # TODO: This will be a problem when loading custom solvers. They are always stored and saved as SolverSpec even if unregistered and just passed as a type/class.
             self._regularizer.check_solver(solver.algo_name)
             self._solver_spec = solver
         elif issubclass(solver, SolverProtocol):
             # skip regularizer compatibility check
-            spec = SolverSpec(solver.__name__, "custom", solver)
+            # TODO: Document algo_name. Part of AbstracSolver?
+            try:
+                algo_name = solver.algo_name
+            except AttributeError:
+                algo_name = solver.__name__
+            spec = SolverSpec(algo_name, "custom", solver)
             self._solver_spec = spec
         else:
             raise ValueError(f"Unexpected value ({solver}) of type {type(solver)}.")

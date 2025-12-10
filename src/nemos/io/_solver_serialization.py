@@ -53,9 +53,9 @@ def deserialize_solver_spec(
             "solver has to be a dict containing key 'nemos_solver_spec' with value True"
         )
 
-    algo_name = solver.get("algo_name")
-    backend = solver.get("backend")
-    implementation = solver.get("implementation")
+    algo_name = solver["algo_name"]
+    backend = solver["backend"]
+    implementation = solver["implementation"]
 
     # If user provided a mapping, honor it first
     if mapping_dict is not None and "solver" in mapping_dict:
@@ -65,9 +65,7 @@ def deserialize_solver_spec(
                 "Invalid map parameter types detected. "
                 "Only classes or callables can be mapped for 'solver'."
             )
-        return _solver_registry.SolverSpec(
-            mapped_solver.__name__, "custom", mapped_solver
-        )
+        return _solver_registry.SolverSpec(algo_name, backend, mapped_solver)
 
     try:
         spec = _solver_registry.get_solver(f"{algo_name}[{backend}]")
