@@ -1,6 +1,13 @@
 """Custom solvers module."""
 
-from ._abstract_solver import AbstractSolver, SolverProtocol
+from ._abstract_solver import (
+    AbstractSolver,
+    OptimizationInfo,
+    Params,
+    SolverProtocol,
+    SolverState,
+    StepResult,
+)
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -16,6 +23,7 @@ from ._optax_optimistix_solvers import (
 from ._optimistix_solvers import OptimistixBFGS, OptimistixNonlinearCG
 from ._solver_doc_helper import get_solver_documentation
 from ._solver_registry import (
+    SolverSpec,
     get_solver,
     list_available_algorithms,
     list_available_solvers,
