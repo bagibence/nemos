@@ -11,7 +11,7 @@ kernelspec:
   name: python3
 ---
 
-# Creating custom solvers for use with NeMoS
+# Creating and using custom solvers
 
 To support flexibility and long-term maintenance, NeMoS now has a backend-agnostic solver interface, allowing the use of solvers from different backend libraries with different interfaces.  
 This also means that users can provide their own solvers, and as long as they adhere to the interface defined by `AbstractSolver`, they should be compatible with NeMoS and can be used for fitting models.
