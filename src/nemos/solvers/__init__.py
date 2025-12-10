@@ -1,5 +1,6 @@
 """Custom solvers module."""
 
+from ._abstract_solver import AbstractSolver, SolverProtocol
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -19,6 +20,7 @@ from ._solver_registry import (
     list_available_algorithms,
     list_available_solvers,
     register,
+    set_default,
 )
 from ._svrg import SVRG, ProxSVRG, WrappedProxSVRG, WrappedSVRG
 from ._svrg_defaults import (
