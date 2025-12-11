@@ -1,3 +1,4 @@
+(developers-solvers)=
 # The `solvers` Module
 
 ## Background

@@ -253,6 +253,10 @@ Classes and types useful for creating completely custom solvers.
     StepResult
 
 
+.. seealso::
+
+    :doc:`The developer notes <developers_notes/07-solvers>` explain the solver contract and expected types in more detail. 
+
 
 The ``nemos.identifiability_constraints`` module
 ------------------------------------------------
