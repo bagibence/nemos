@@ -236,7 +236,7 @@ Adapter classes for existing solvers, especially those defined in the JAXopt, Op
 
 Writing custom solvers
 ^^^^^^^^^^^^^^^^^^^^^^
-Classes and types useful for creating completely custom solvers.
+Classes useful for creating completely custom solvers.
 
 .. currentmodule:: nemos.solvers
 
@@ -247,11 +247,6 @@ Classes and types useful for creating completely custom solvers.
     AbstractSolver
     OptimizationInfo
     SolverProtocol
-
-    Params
-    SolverState
-    StepResult
-
 
 .. seealso::
 
