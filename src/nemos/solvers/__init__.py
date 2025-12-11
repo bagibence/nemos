@@ -25,6 +25,7 @@ from ._solver_doc_helper import get_solver_documentation
 from ._solver_registry import (
     SolverSpec,
     get_solver,
+    list_algo_backends,
     list_available_algorithms,
     list_available_solvers,
     register,
