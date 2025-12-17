@@ -41,7 +41,7 @@ def get_solver_documentation(solver: str | Type, show_help: bool = False) -> str
     ...
     """
     if isinstance(solver, str):
-        solver = get_solver(solver)
+        solver = get_solver(solver).implementation
 
     if show_help:
         return render_doc(solver, title="Help on %s")

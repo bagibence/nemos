@@ -181,8 +181,6 @@ def list_algo_backends(algo_name: str) -> list[str]:
     return list(_registry[algo_name].keys())
 
 
-# TODO: Add doctest
-# TODO: Return full_name instead of the SolverSpec?
 def list_available_solvers() -> list[SolverSpec]:
     """List all available solvers."""
     return [
@@ -190,7 +188,6 @@ def list_available_solvers() -> list[SolverSpec]:
     ]
 
 
-# TODO: Add doctest
 def list_available_algorithms() -> list[str]:
     """
     List the available algorithms that can be used for fitting models.
@@ -200,6 +197,12 @@ def list_available_algorithms() -> list[str]:
 
     To access an extended documentation about a specific solver,
     see `nemos.solvers.get_solver_documentation`.
+
+    Example
+    -------
+    >>> import nemos as nmo
+    >>> nmo.solvers.list_available_algorithms()
+    ['GradientDescent', 'ProximalGradient', 'LBFGS', 'BFGS', 'NonlinearCG', 'SVRG', 'ProxSVRG']
     """
     return list(_registry.keys())
 
