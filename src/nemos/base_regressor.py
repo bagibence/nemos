@@ -364,7 +364,6 @@ class BaseRegressor(Base, abc.ABC):
         :
             The instance itself for method chaining.
         """
-        # TODO: This should be skipped if using a(n unregistered) custom solver
         # final check that solver is valid for chosen regularizer
         if self.solver.backend != "unchecked_custom":
             self._regularizer.check_solver(self.solver.algo_name)
