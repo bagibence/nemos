@@ -114,6 +114,9 @@ class Regularizer(Base, abc.ABC):
         algo_name :
             Name of the optimization algorithm to add.
         """
+        if algo_name in cls._allowed_solvers:
+            return
+
         cls._allowed_solvers += (algo_name,)
 
     def __repr__(self):
