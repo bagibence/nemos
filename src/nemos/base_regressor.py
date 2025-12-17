@@ -274,8 +274,8 @@ class BaseRegressor(Base, abc.ABC):
             self._regularizer.check_solver(spec.algo_name)
             self._solver_spec = spec
         elif isinstance(solver, SolverSpec):
-            # TODO: This will be a problem when loading custom solvers. They are always stored and saved as SolverSpec even if unregistered and just passed as a type/class.
-            self._regularizer.check_solver(solver.algo_name)
+            if solver.backend != "unchecked_custom":
+                self._regularizer.check_solver(solver.algo_name)
             self._solver_spec = solver
         elif issubclass(solver, SolverProtocol):
             # skip regularizer compatibility check
@@ -284,7 +284,7 @@ class BaseRegressor(Base, abc.ABC):
                 algo_name = solver.algo_name
             except AttributeError:
                 algo_name = solver.__name__
-            spec = SolverSpec(algo_name, "custom", solver)
+            spec = SolverSpec(algo_name, "unchecked_custom", solver)
             self._solver_spec = spec
         else:
             raise ValueError(f"Unexpected value ({solver}) of type {type(solver)}.")
@@ -366,7 +366,8 @@ class BaseRegressor(Base, abc.ABC):
         """
         # TODO: This should be skipped if using a(n unregistered) custom solver
         # final check that solver is valid for chosen regularizer
-        self._regularizer.check_solver(self.solver.algo_name)
+        if self.solver.backend != "unchecked_custom":
+            self._regularizer.check_solver(self.solver.algo_name)
 
         if solver_kwargs is None:
             # copy dictionary of kwargs to avoid modifying user settings
