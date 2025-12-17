@@ -6,17 +6,17 @@ jupytext:
     format_version: 0.13
     jupytext_version: 1.18.1
 kernelspec:
-  display_name: Python 3 (ipykernel)
+  display_name: nemos_env
   language: python
   name: python3
 ---
 
-# Using custom solvers
+# Creating and using custom solvers
 
 To support flexibility and long-term maintenance, NeMoS now has a backend-agnostic solver interface, allowing the use of solvers from different backend libraries with different interfaces.  
-This also means that users can provide their own solvers, and as long as they adhere to the interface defined by [`AbstractSolver`](nemos.solvers._abstract_solver.AbstractSolver), they should be compatible with NeMoS and can be used for fitting models.
+This also means that users can provide their own solvers, and as long as they adhere to the interface defined by `AbstractSolver`, they should be compatible with NeMoS and can be used for fitting models.
 
-In the following we will walk through how one can create a NeMoS-compatible solver that uses [`scipy.optimize.minimize`](scipy.optimize.minimize) in the background.
+In the following we will walk through how one can create a NeMoS-compatible solver that uses [`scipy.optimize.minimize` with the modified Powell method](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-powell.html#optimize-minimize-powell), an algorithm not present in NeMoS by default.
 
 +++
 
@@ -28,7 +28,7 @@ In order to adhere to the `AbstractSolver` interface, we have to define the foll
 - `update`: Take one step of the optimization algorithm.
 - `run`: Run a full optimization.
 - `get_accepted_arguments`: Set of argument names that can be passed to `__init__`.
-- `get_optim_info`: Collect diagnostic information about the optimization run into an [`OptimizationInfo`](nemos.solvers._abstract_solver.OptimizationInfo) namedtuple.
+- `get_optim_info`: Collect diagnostic information about the optimization run into an `OptimizationInfo` namedtuple.
 
 ```{code-cell} ipython3
 import jax
@@ -65,7 +65,7 @@ class ScipySolver:
         unregularized_loss,
         regularizer,
         regularizer_strength,
-        method: str | None = "L-BFGS-B",
+        method: str,
         max_steps: int = 100,
         tol: float = 1e-8,
     ) -> None:
@@ -75,7 +75,7 @@ class ScipySolver:
         These are the arguments we expose to the user and we will also need to list these in `get_accepted_arguments`.
         Users can set these when creating the model with e.g. `GLM(..., solver_kwargs={"max_steps" : 10})`.
         In our case these are stored and later passed to `scipy.optimize.minimize`:
-        - `method`: name of the optimization method to use. We use "L-BFGS-B" here.
+        - `method`: name of the optimization method to use. In this example we will use "L-BFGS-B".
         - `max_steps`: maximum number of steps to take.
         - `tol`: tolerance for the convergence criteria.
 
@@ -178,26 +178,47 @@ class ScipySolver:
             state.res["success"],
             state.res["nit"] >= self.max_steps,
         )
+
+
+class ScipyPowell(ScipySolver):
+    """Solver using the modified Powell algorithm."""
+
+    def __init__(
+        self,
+        unregularized_loss,
+        regularizer,
+        regularizer_strength,
+        max_steps: int = 100,
+        tol: float = 1e-8,
+    ):
+        return super().__init__(
+            unregularized_loss,
+            regularizer,
+            regularizer_strength,
+            "Powell",
+            max_steps,
+            tol,
+        )
 ```
 
-### Checking that `ScipySolver` is compatible with NeMoS
+### Checking that `ScipyPowell` is compatible with NeMoS
 
-[`SolverProtocol`](nemos.solvers._abstract_solver.SolverProtocol) defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
+`SolverProtocol` defines the same interface as `AbstractSolver` and can be used to check the existence of all required methods:
 
 ```{code-cell} ipython3
 from nemos.solvers import SolverProtocol
 
-issubclass(ScipySolver, SolverProtocol)
+issubclass(ScipyPowell, SolverProtocol)
 ```
 
 Now let's validate in more detail, checking the number of accepted arguments.
 
 ```{code-cell} ipython3
 # TODO: Implement this
-# nemos.solvers.validate_solver(ScipySolver)
+# nemos.solvers.validate_solver(ScipyPowell)
 ```
 
-## Using `ScipySolver` for model fitting
+## Using `ScipyPowell` for model fitting
 
 +++
 
@@ -232,26 +253,18 @@ else:
 
 ### Create the model and fit 
 
-Passing the `ScipySolver` class we created as the solver to `GLM`, it will now use this class as the solver instead of fetching the solver from the registry, and `model.fit` will call `ScipySolver.run`. 
+Passing the `ScipyPowell` class we created as the solver to `GLM`, it will now use this class as the solver instead of fetching the solver from the registry, and `model.fit` will call `ScipyPowell.run`. 
 
 ```{code-cell} ipython3
-model = glm_class(
-    solver=ScipySolver,
-    solver_kwargs={
-        "max_steps": 100,
-    },
-)
-
+model = glm_class(solver=ScipyPowell)
 model.fit(X, y)
 ```
 
-We can inspect the model to show that it is using `ScipySolver`:
+We can inspect the model to show that it is using `ScipyPowell`:
 
 ```{code-cell} ipython3
 # the solver string or class
 print(model.solver)
-# the solver name is generated from this
-print(model.solver_name)
 # the actual solver instance that is created from the string or class
 print(model._solver_instance)
 # GLM._solver_run (called within GLM.fit) corresponds to this instance's .run method
@@ -260,9 +273,9 @@ print(model._solver_run)
 
 ### Test the update method
 
-`model.fit` called `ScipySolver.run` to perform a whole optimization and return the final solution.
+`model.fit` called `ScipyPowell.run` to perform a whole optimization and return the final solution.
 
-Repeatedly calling a `model.update` calls `ScipySolver.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters.
+Repeatedly calling a `model.update` calls `ScipyPowell.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters.
 
 This also showcases how quickly the L-BFGS algorithm used by `scipy` converges on this problem.
 
@@ -281,3 +294,47 @@ ax.plot(range(1, 21), scores)
 ax.set(xlabel="Iteration", ylabel="Obj. fun. value")
 ```
 
+## Save and load
+
+```{code-cell} ipython3
+save_path = "glm_with_custom_solver.npz"
+model.save_params(save_path)
+```
+
+```{code-cell} ipython3
+loaded_model = nmo.load_model(save_path, mapping_dict={"solver": ScipyPowell})
+loaded_model._solver_spec
+```
+
+## Alternatively, register and allow the solver
+
++++
+
+As an alternative to passing the type, one can also register the solver in the registry and use it just like any algorithm included in NeMoS.
+
+```{code-cell} ipython3
+nmo.solvers.register("Powell", ScipyPowell, "scipy")
+```
+
+In this case NeMoS checks if the algorithm is compatible with the regularizer, which can be useful if we want to avoid accidentally using an algorithm-regularizer combination that is not allowed (e.g. Powell and lasso).
+
+In this case NeMoS will raise an error:
+
+```{code-cell} ipython3
+try:
+    model = glm_class(solver="Powell")
+    model.fit(X, y)
+except Exception as e:
+    print(e)
+```
+
+```{code-cell} ipython3
+nmo.regularizer.UnRegularized.allow_solver("Powell")
+
+model = glm_class(solver="Powell")
+model.fit(X, y)
+```
+
+```{code-cell} ipython3
+
+```
