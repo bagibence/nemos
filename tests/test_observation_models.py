@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import scipy as sp
 import scipy.stats as sts
 import statsmodels.api as sm
 
@@ -16,7 +15,6 @@ from nemos._observation_model_builder import (
     instantiate_observation_model,
 )
 from nemos.glm.initialize_parameters import initialize_intercept_matching_mean_rate
-from nemos.glm.inverse_link_function_utils import LINK_NAME_TO_FUNC
 
 
 @pytest.fixture
@@ -35,6 +33,8 @@ def observation_model_rate_and_samples(observation_model_string, shape=None):
     elif observation_model_string == "Gamma":
         theta = 3
         y = jax.random.gamma(jax.random.PRNGKey(123), rate / theta) * theta
+    elif observation_model_string == "Gaussian":
+        y = rate + jax.random.normal(jax.random.PRNGKey(123), shape=rate.shape)
     elif observation_model_string == "Bernoulli":
         rate = rate / (1 + jnp.max(rate))
         y = jax.random.bernoulli(jax.random.PRNGKey(123), rate)
@@ -68,6 +68,11 @@ def negative_binomial_observations():
     return nmo.observation_models.NegativeBinomialObservations
 
 
+@pytest.fixture()
+def gaussian_observations():
+    return nmo.observation_models.GaussianObservations
+
+
 @pytest.mark.parametrize(
     "obs_model_string, expectation",
     [
@@ -75,6 +80,7 @@ def negative_binomial_observations():
         ("Gamma", does_not_raise()),
         ("Bernoulli", does_not_raise()),
         ("NegativeBinomial", does_not_raise()),
+        ("Gaussian", does_not_raise()),
         (
             "invalid",
             pytest.raises(ValueError, match="Unknown observation model: invalid"),
@@ -95,9 +101,11 @@ def test_glm_instantiation_from_string_at_init(
         ("Poisson", does_not_raise()),
         ("Gamma", does_not_raise()),
         ("Bernoulli", does_not_raise()),
+        ("Gaussian", does_not_raise()),
         ("nemos.observation_models.PoissonObservations", does_not_raise()),
         ("nemos.observation_models.GammaObservations", does_not_raise()),
         ("nemos.observation_models.BernoulliObservations", does_not_raise()),
+        ("nemos.observation_models.GaussianObservations", does_not_raise()),
         ("NegativeBinomial", does_not_raise()),
         ("nemos.observation_models.NegativeBinomial", does_not_raise()),
         (
@@ -141,6 +149,10 @@ def test_glm_setter_observation_model(obs_model_string, glm_class, expectation):
         assert isinstance(
             model.observation_model, nmo.observation_models.NegativeBinomialObservations
         )
+    elif obs_model_string == "Gaussian":
+        assert isinstance(
+            model.observation_model, nmo.observation_models.GaussianObservations
+        )
 
 
 @pytest.mark.parametrize(
@@ -150,6 +162,7 @@ def test_glm_setter_observation_model(obs_model_string, glm_class, expectation):
         ("Gamma", does_not_raise()),
         ("Bernoulli", does_not_raise()),
         ("NegativeBinomial", does_not_raise()),
+        ("Gaussian", does_not_raise()),
         ("NB", pytest.raises(ValueError, match="Unknown observation model: NB")),
     ],
 )
@@ -345,12 +358,12 @@ class TestGammaObservations:
                 "The emission probability should output the results of a call to jax.random.gamma."
             )
 
+    @pytest.mark.requires_x64
     def test_pseudo_r2_vs_statsmodels(self, gammaGLM_model_instantiation):
         """
         Compare log-likelihood to scipy.
         Assesses if the model estimates are close to statsmodels' results.
         """
-        jax.config.update("jax_enable_x64", True)
         X, y, model, _, firing_rate = gammaGLM_model_instantiation
 
         # statsmodels mcfadden
@@ -445,16 +458,17 @@ class TestBernoulliObservations:
 
 class TestNegativeBinomialObservations:
 
+    @pytest.mark.requires_x64
     def test_get_params(self, negative_binomial_observations):
         observation_model = negative_binomial_observations()
         assert observation_model.get_params() == {
             "scale": 1.0,
         }
 
+    @pytest.mark.requires_x64
     def test_deviance_against_statsmodels(
         self, negativeBinomialGLM_model_instantiation
     ):
-        jax.config.update("jax_enable_x64", True)
         _, y, model, _, firing_rate = negativeBinomialGLM_model_instantiation
         dev = sm.families.NegativeBinomial(
             alpha=model.observation_model.scale
@@ -514,10 +528,10 @@ class TestNegativeBinomialObservations:
 class TestCommonObservationModels:
 
     @pytest.mark.parametrize("shape", [(10,), (10, 5), (10, 5, 2)])
+    @pytest.mark.requires_x64
     def test_likelihood_matching(
         self, shape, observation_model_string, observation_model_rate_and_samples
     ):
-        jax.config.update("jax_enable_x64", True)
         obs, y, rate = observation_model_rate_and_samples
         like1 = jnp.exp(
             obs.log_likelihood(y, rate, aggregate_sample_scores=lambda x: x)
@@ -530,6 +544,7 @@ class TestCommonObservationModels:
         assert jnp.allclose(like1, like2)
 
     @pytest.mark.parametrize("shape", [(10,), (10, 5), (10, 5, 2)])
+    @pytest.mark.requires_x64
     def test_aggregation_score_mcfadden(
         self, shape, observation_model_string, observation_model_rate_and_samples
     ):
@@ -549,6 +564,7 @@ class TestCommonObservationModels:
 
     @pytest.mark.parametrize("score_type", ["pseudo-r2-McFadden", "pseudo-r2-Cohen"])
     @pytest.mark.parametrize("shape", [(10,), (10, 5), (10, 5, 2)])
+    @pytest.mark.requires_x64
     def test_aggregation_score_pr2(
         self,
         score_type,
@@ -660,3 +676,207 @@ class TestCommonObservationModels:
         pseudo_r2 = obs.pseudo_r2(y, rate, score_type=score_type)
         if (pseudo_r2 > 1) or (pseudo_r2 < 0):
             raise ValueError(f"pseudo-r2 of {pseudo_r2} outside the [0,1] range!")
+
+
+class ConfigurableObservationModel:
+    """
+    A configurable observation model for testing.
+
+    Parameters
+    ----------
+    exclude_methods : list of str, optional
+        Methods to exclude from the model (simulates missing attributes)
+    override_returns : dict, optional
+        Dictionary mapping method names to return values.
+        If a method is in this dict, it will return the specified value instead of the default.
+    non_callable_methods : list of str, optional
+        Methods that should be non-callable (assigned as strings or other non-callable types)
+    """
+
+    def __init__(
+        self, exclude_methods=None, override_returns=None, non_callable_methods=None
+    ):
+        self.exclude_methods = exclude_methods or []
+        self.override_returns = override_returns or {}
+        self.non_callable_methods = non_callable_methods or []
+
+        # Set non-callable attributes
+        for method_name in self.non_callable_methods:
+            setattr(self, method_name, "not_a_function")
+
+    def __getattribute__(self, name):
+        # Use object's __getattribute__ to avoid infinite recursion
+        exclude_methods = object.__getattribute__(self, "exclude_methods")
+
+        # If method is excluded, raise AttributeError
+        if name in exclude_methods:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+
+        return object.__getattribute__(self, name)
+
+    @property
+    def default_inverse_link_function(self):
+        if "default_inverse_link_function" in self.override_returns:
+            return lambda x: self.override_returns["default_inverse_link_function"]
+        return jax.scipy.special.expit
+
+    def _negative_log_likelihood(self, y, rate, aggregate_sample_scores=jnp.mean):
+        if "_negative_log_likelihood" in self.override_returns:
+            return self.override_returns["_negative_log_likelihood"]
+        return -aggregate_sample_scores(
+            y * jax.scipy.special.logit(rate)
+            + (1 - y) * jax.scipy.special.logit(1 - rate)
+        )
+
+    def pseudo_r2(self, y, rate, aggregate_sample_scores=jnp.mean):
+        if "pseudo_r2" in self.override_returns:
+            return self.override_returns["pseudo_r2"]
+        return 1 - (
+            self._negative_log_likelihood(y, rate, aggregate_sample_scores)
+            / jnp.sum((y - y.mean()) ** 2)
+        )
+
+    def sample_generator(self, key, rate, scale=1.0):
+        if "sample_generator" in self.override_returns:
+            return self.override_returns["sample_generator"]
+        return jax.random.bernoulli(key, rate)
+
+    def estimate_scale(self, y, predicted_rate, dof_resid):
+        if "estimate_scale" in self.override_returns:
+            return self.override_returns["estimate_scale"]
+        return jnp.array(1.0)
+
+    def log_likelihood(self, y, rate, aggregate_sample_scores=jnp.mean):
+        if "log_likelihood" in self.override_returns:
+            return self.override_returns["log_likelihood"]
+        return -self._negative_log_likelihood(y, rate, aggregate_sample_scores)
+
+    def likelihood(self, y, rate, aggregate_sample_scores=jnp.mean):
+        if "likelihood" in self.override_returns:
+            return self.override_returns["likelihood"]
+        return jnp.exp(self.log_likelihood(y, rate, aggregate_sample_scores))
+
+    def deviance(self, y, rate, scale=1.0):
+        if "deviance" in self.override_returns:
+            return self.override_returns["deviance"]
+        identity = lambda x: x
+        return 2 * (
+            self.log_likelihood(y, rate, identity)
+            - self.log_likelihood(y.mean() * np.ones_like(y), rate, identity)
+        )
+
+
+@pytest.fixture
+def valid_observation_model():
+    """A valid observation model that passes all checks."""
+    return ConfigurableObservationModel()
+
+
+def test_valid_observation_model(valid_observation_model):
+    """Test that a valid observation model passes all checks."""
+    nmo.observation_models.check_observation_model(valid_observation_model)
+
+
+@pytest.mark.parametrize("observation", AVAILABLE_OBSERVATION_MODELS)
+def test_nemos_model_pass_check(observation):
+    """Test that a valid observation model passes all checks."""
+    obs = instantiate_observation_model(observation)
+    nmo.observation_models.check_observation_model(obs, force_checks=True)
+
+
+@pytest.mark.parametrize(
+    "missing_method",
+    [
+        "_negative_log_likelihood",
+        "pseudo_r2",
+        "log_likelihood",
+        "likelihood",
+        "deviance",
+        "sample_generator",
+        "estimate_scale",
+        "default_inverse_link_function",
+    ],
+)
+def test_missing_method(missing_method):
+    """Test that missing required methods raise AttributeError."""
+    model = ConfigurableObservationModel(exclude_methods=[missing_method])
+
+    with pytest.raises(AttributeError, match="does not have the required"):
+        nmo.observation_models.check_observation_model(model)
+
+
+@pytest.mark.parametrize(
+    "non_callable_method",
+    [
+        "_negative_log_likelihood",
+        "pseudo_r2",
+        "log_likelihood",
+        "likelihood",
+        "deviance",
+        "sample_generator",
+        "estimate_scale",
+    ],
+)
+def test_non_callable_method(non_callable_method):
+    """Test that non-callable methods raise TypeError."""
+    model = ConfigurableObservationModel(non_callable_methods=[non_callable_method])
+
+    with pytest.raises(TypeError, match="must be a Callable"):
+        nmo.observation_models.check_observation_model(model)
+
+
+@pytest.mark.parametrize(
+    "method_name,return_value",
+    [
+        ("_negative_log_likelihood", "not an array"),
+        ("pseudo_r2", [1, 2, 3]),
+        ("log_likelihood", {"key": "value"}),
+        ("likelihood", 42),
+        ("deviance", "string"),
+        ("sample_generator", [1.0, 2.0, 3.0]),
+        ("estimate_scale", None),
+    ],
+)
+def test_method_not_returning_array(method_name, return_value):
+    """Test that methods not returning ndarray raise TypeError."""
+    model = ConfigurableObservationModel(override_returns={method_name: return_value})
+
+    with pytest.raises(TypeError, match="must return a"):
+        nmo.observation_models.check_observation_model(model)
+
+
+@pytest.mark.parametrize(
+    "method_name,return_value",
+    [
+        ("_negative_log_likelihood", jnp.array([1.0, 2.0, 3.0])),
+        ("pseudo_r2", jnp.array([0.5, 0.6, 0.7])),
+        ("log_likelihood", jnp.array([[1.0], [2.0]])),
+        ("likelihood", jnp.array([1.0, 1.0])),
+    ],
+)
+def test_method_not_returning_scalar(method_name, return_value):
+    """Test that methods marked as scalar functions return scalars, not vectors."""
+    model = ConfigurableObservationModel(override_returns={method_name: return_value})
+
+    with pytest.raises(TypeError, match="should return a scalar"):
+        nmo.observation_models.check_observation_model(model)
+
+
+@pytest.mark.parametrize(
+    "return_value,description",
+    [
+        (jnp.array([1.0, 2.0]), "too few elements"),
+        (jnp.array([1.0, 2.0, 3.0, 4.0]), "too many elements"),
+        (jnp.array([[1.0, 2.0, 3.0]]), "wrong dimensionality"),
+    ],
+)
+def test_sample_generator_wrong_shape(return_value, description):
+    """Test that sample_generator preserves input shape."""
+    model = ConfigurableObservationModel(
+        override_returns={"sample_generator": return_value}
+    )
+
+    with pytest.raises(ValueError, match="preserve the input array"):
+        nmo.observation_models.check_observation_model(model)

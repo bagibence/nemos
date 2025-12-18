@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 (developers-solvers)=
+=======
+>>>>>>> development
 # The `solvers` Module
 
 ## Background
@@ -12,6 +15,8 @@ In particular, NeMoS's solvers interface is designed to be compatible with solve
 
 ## `AbstractSolver` interface
 This interface is defined by [`AbstractSolver`](nemos.solvers._abstract_solver.AbstractSolver) and mostly follows the JAXopt API.
+=======
+This interface is defined by `AbstractSolver` and mostly follows the JAXopt API.
 All solvers implemented in NeMoS are subclasses of `AbstractSolver`, however subclassing is not strictly required for implementing solvers that can be used with NeMoS. (See [custom solvers](#custom-solvers))
 
 The `AbstractSolver` interface requires implementing the following methods:
@@ -120,5 +125,5 @@ For information on how stochastic optimization is planned to be supported in NeM
 :::{admonition} Stochastic optimization interface for (Prox-)SVRG
 :class: warning
 
-Note that (Prox-)SVRG is especially well-suited for running stochastic optimization, however it currently requires the optimization loop to be implemented separately as it is a bit more involved than what is done by `run_iterator`.  
+Note that (Prox-)SVRG is especially well-suited for running stochastic optimization, however it currently requires the optimization loop to be implemented separately as it is a bit more involved than what is done by `run_iterator`.
 :::

@@ -60,6 +60,7 @@ VALID_PAIRS = [
     {"state", "states"},
     {"state", "start"},
     {"states", "start"},
+    {"n_states", "states"},
     {"feature_mask", "features"},
     {"observation", "observations"},
     # doc utils
@@ -68,16 +69,52 @@ VALID_PAIRS = [
     {"predicted_firing_rate", "predicted_firing_rates"},
     {"tuning_curve", "tuning_curves"},
     {"hyperparams_prox", "hyperparams"},
+    {"condition", "conditionals"},
+    {"posterior", "posteriors"},
+    {"beta", "betas"},
+    {"alpha", "alphas"},
     {"hyperparams_prox", "hyperparams"},
     {"flat_dict", "flat_map_dict"},
     {"fit_params", "init_params"},
     {"args", "arg"},
+    {"initialize_init_proba", "initialize_transition_proba"},
+    *(
+        {a, b}
+        for (a, b) in itertools.combinations(
+            [
+                "dirichlet_prior_alphas_init_prob",
+                "dirichlet_prior_alphas_transition",
+                "dirichlet_prior_alphas",
+            ],
+            r=2,
+        )
+    ),
+    {"likelihood_func", "log_likelihood_func"},
+    {"negative_log_likelihood_func", "log_likelihood_func"},
     {"tol", "atol"},
     {"tol", "rtol"},
     {"fit_params", "flat_params"},
     {"solver_kwargs", "solver_init_kwargs"},
     {"unaccepted_name", "accepted_name"},
     {"fn", "fun"},
+    {"glm_params_init", "glm_params"},
+    {"initial_prob", "log_initial_prob"},
+    {"transition_prob", "log_transition_prob"},
+    {"normalization", "log_normalization"},
+    {"log_conditional_prob", "log_initial_prob"},
+    *(
+        {a, b}
+        for (a, b) in itertools.combinations(
+            [
+                "log_posterior",
+                "log_posteriors",
+                "posteriors",
+                "log_joint_posterior",
+                "joint_posterior",
+            ],
+            r=2,
+        )
+    ),
 ]
 
 
