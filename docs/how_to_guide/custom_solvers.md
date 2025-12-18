@@ -11,7 +11,7 @@ kernelspec:
   name: python3
 ---
 
-# Creating and using custom solvers
+# Creating custom solvers for use with NeMoS
 
 To support flexibility and long-term maintenance, NeMoS now has a backend-agnostic solver interface, allowing the use of solvers from different backend libraries with different interfaces.  
 This also means that users can provide their own solvers, and as long as they adhere to the interface defined by `AbstractSolver`, they should be compatible with NeMoS and can be used for fitting models.
@@ -50,8 +50,6 @@ class ScipySolverState(NamedTuple):
     # for keeping track of the number of steps when using update
     iter_num: int
     # res is for storing the results of the optimization run.
-    # NOTE: Storing as a dict because for some reason scipy.optimize.OptimizeResult
-    # doesn't work with update from the second iteration.
     res: dict
 
 
@@ -131,7 +129,6 @@ class ScipySolver:
         and increment the number steps in the state by hand.
         """
         unstacked_final_params, res = self._run_for_n_steps(params, 1, *args)
-        # 0 or 1. Hopefully 1.
         assert res.nit <= 1
         return unstacked_final_params, ScipySolverState(
             state.iter_num + res.nit, {**res}
@@ -144,8 +141,10 @@ class ScipySolver:
         Prepare things in the form `scipy.optimize.minimize` expects them, then call it to
         run the optimization for `n_steps` steps.
         """
-        # `params` is a tuple of (weight_matrix, intercept), but `scipy.optimize.minimize` only
-        # accepts a 1D vector of parameters, so flatten all parameters and concatenate them
+        # `params` returned by GLM is a tuple of (weight_matrix, intercept),
+        # but `scipy.optimize.minimize` only accepts a 1D vector of parameters,
+        # so flatten all parameters and concatenate them
+
         flattener_fun, unflattener_fun = get_flattener_unflattener(params)
         _flat_params = flattener_fun(params)
 
@@ -269,7 +268,7 @@ Additional arguments of `nmo.solvers.register` are:
 Setting this to `True` can be handy when developing a solver, as changes require re-registration to take effect.
 - `default`: Set this implementation as the default for the algorithm. Can also be done with `nmo.solvers.set_default`.
 <br>
-Setting this to `True` would tell NeMoS that we want to use this as the default LBFGS implementation.
+Setting this to `True` would tell NeMoS that we want to use this as the default Powell implementation.
 
 +++
 
@@ -278,8 +277,8 @@ Setting this to `True` would tell NeMoS that we want to use this as the default 
 Passing `"Powell"` as the solver_name to `GLM`, it will now look up this class in the solver registry, and `model.fit` will call `ScipyPowell.run`. 
 
 If we have multiple implementations of a given algorithm (for example because we created and registered `ScipyLBFGS` instead), specifying only the algorithm's name will use the implementation set as the default for the given algorithm.
-
-In this case we want to use a non-default implementation, we have to specify its backend, such as `LBFGS[scipy]`.
+<br>
+In case we want to use a non-default implementation, we have to specify its backend, such as `LBFGS[scipy]`.
 
 To explore and set defaults, use the `nemos.solvers.set_default` and `nemos.solvers.get_default_backend` functions.
 
@@ -287,21 +286,17 @@ To explore and set defaults, use the `nemos.solvers.set_default` and `nemos.solv
 
 #### Declaring compatibility with regularizers
 
-Trying to use our solver will fail because NeMoS checks if the solver's algorithm is compatible with the regularizer we are using:
-
-```{code-cell} ipython3
-try:
-    model = glm_class(solver_name="Powell")
-    model.fit(X, y)
-except Exception as e:
-    print(e)
-```
-
-After allowing the use of this solver with no regularization (default when not explicitly specified):
+Trying to use our solver would fail because NeMoS checks if the solver's algorithm is compatible with the regularizer we are using.
+<br>
+So before using our solver for model fitting, we have to declare that it is compatible with the regularizer we want to use it with:
 
 ```{code-cell} ipython3
 nmo.regularizer.UnRegularized.allow_solver("Powell")
+```
 
+Now model fitting works the same as with built-in solvers:
+
+```{code-cell} ipython3
 model = glm_class(solver_name="Powell")
 model.fit(X, y)
 ```
@@ -321,7 +316,7 @@ print(model._solver_run)
 
 `model.fit` called `ScipyPowell.run` to perform a whole optimization and return the final solution.
 
-Repeatedly calling a `model.update` calls `ScipyPowell.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters.
+Repeatedly calling a `model.update` calls `ScipyPowell.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters:
 
 ```{code-cell} ipython3
 import matplotlib.pyplot as plt
@@ -338,7 +333,7 @@ ax.plot(range(1, 21), scores)
 ax.set(xlabel="Iteration", ylabel="Obj. fun. value")
 ```
 
-## Save and load model
+## Saving and loading models with custom solvers
 
 +++
 
@@ -377,14 +372,9 @@ nmo.regularizer.UnRegularized._allowed_solvers = tuple(
 )
 ```
 
-Now trying to load the model gives an error because the solver is not registered and none of the regularizers know about and allow the Powell algorithm.
+Now trying to load the model would give an error because the solver is not registered and none of the regularizers know about and allow the Powell algorithm.
 
-```{code-cell} ipython3
-try:
-    nmo.load_model(save_path)
-except Exception as e:
-    print(e)
-```
++++
 
 Loading a model with a custom solver requires:
 - The class definition of the solver implementation.
@@ -392,8 +382,6 @@ Loading a model with a custom solver requires:
 - In case of algorithms not shipped in NeMoS (see `nemos.solvers.list_available_algorithms`), declaring that the implemented algorithm is compatible with the regularizer used.
 
 ```{code-cell} ipython3
-import nemos as nmo
-
 # 1. define the class
 # class ScipyPowell(ScipySolver):
 #     ...
