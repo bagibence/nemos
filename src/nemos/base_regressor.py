@@ -108,7 +108,6 @@ class BaseRegressor(Base, abc.ABC):
         self.regularizer = "UnRegularized" if regularizer is None else regularizer
         self.regularizer_strength = regularizer_strength
 
-        # TODO: Update the typing everywhere
         if solver is None:
             self.solver = cast(Regularizer, self.regularizer).default_solver
         else:
@@ -519,7 +518,7 @@ class BaseRegressor(Base, abc.ABC):
     def update(
         self,
         params: Tuple[jnp.ndarray, jnp.ndarray],
-        opt_state: NamedTuple,
+        opt_state: SolverState,
         X: DESIGN_INPUT_TYPE,
         y: jnp.ndarray,
         *args,
