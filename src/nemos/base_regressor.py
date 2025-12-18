@@ -479,7 +479,7 @@ class BaseRegressor(Base, abc.ABC):
     def update(
         self,
         params: Tuple[jnp.ndarray, jnp.ndarray],
-        opt_state: NamedTuple,
+        opt_state: SolverState,
         X: DESIGN_INPUT_TYPE,
         y: jnp.ndarray,
         *args,
