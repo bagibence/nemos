@@ -50,8 +50,6 @@ class ScipySolverState(NamedTuple):
     # for keeping track of the number of steps when using update
     iter_num: int
     # res is for storing the results of the optimization run.
-    # NOTE: Storing as a dict because for some reason scipy.optimize.OptimizeResult
-    # doesn't work with update from the second iteration.
     res: dict
 
 
@@ -129,7 +127,6 @@ class ScipySolver:
         and increment the number steps in the state by hand.
         """
         unstacked_final_params, res = self._run_for_n_steps(params, 1, *args)
-        # 0 or 1. Hopefully 1.
         assert res.nit <= 1
         return unstacked_final_params, ScipySolverState(
             state.iter_num + res.nit, {**res}
@@ -142,8 +139,9 @@ class ScipySolver:
         Prepare things in the form `scipy.optimize.minimize` expects them, then call it to
         run the optimization for `n_steps` steps.
         """
-        # `params` is a tuple of (weight_matrix, intercept), but `scipy.optimize.minimize` only
-        # accepts a 1D vector of parameters, so flatten all parameters and concatenate them
+        # `params` returned by GLM is a tuple of (weight_matrix, intercept),
+        # but `scipy.optimize.minimize` only accepts a 1D vector of parameters,
+        # so flatten all parameters and concatenate them
         flattener_fun, unflattener_fun = get_flattener_unflattener(params)
         _flat_params = flattener_fun(params)
 
@@ -275,9 +273,7 @@ print(model._solver_run)
 
 `model.fit` called `ScipyPowell.run` to perform a whole optimization and return the final solution.
 
-Repeatedly calling a `model.update` calls `ScipyPowell.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters.
-
-This also showcases how quickly the L-BFGS algorithm used by `scipy` converges on this problem.
+Repeatedly calling a `model.update` calls `ScipyPowell.update` to perform a single step of the optimization. While this is usually much slower, this way we can follow the evolution of the loss function's value or the model parameters:
 
 ```{code-cell} ipython3
 import matplotlib.pyplot as plt
@@ -294,12 +290,18 @@ ax.plot(range(1, 21), scores)
 ax.set(xlabel="Iteration", ylabel="Obj. fun. value")
 ```
 
-## Save and load
+## Saving and loading models with custom solvers
+
++++
+
+Saving the model works the same as with built-in solvers:
 
 ```{code-cell} ipython3
 save_path = "glm_with_custom_solver.npz"
 model.save_params(save_path)
 ```
+
+Loading requires giving NeMoS a mapping specifying which custom class to use for the solver:
 
 ```{code-cell} ipython3
 loaded_model = nmo.load_model(save_path, mapping_dict={"solver": ScipyPowell})
@@ -310,7 +312,7 @@ loaded_model._solver_spec
 
 +++
 
-As an alternative to passing the type, one can also register the solver in the registry and use it just like any algorithm included in NeMoS.
+As an alternative to passing the `ScipyPowell` type as the solver, one can also register the solver in the registry and use it just like any algorithm included in NeMoS.
 
 ```{code-cell} ipython3
 nmo.solvers.register("Powell", ScipyPowell, "scipy")
@@ -318,7 +320,7 @@ nmo.solvers.register("Powell", ScipyPowell, "scipy")
 
 In this case NeMoS checks if the algorithm is compatible with the regularizer, which can be useful if we want to avoid accidentally using an algorithm-regularizer combination that is not allowed (e.g. Powell and lasso).
 
-In this case NeMoS will raise an error:
+Trying to use an incompatible combination would raise an error:
 
 ```{code-cell} ipython3
 try:
@@ -327,6 +329,8 @@ try:
 except Exception as e:
     print(e)
 ```
+
+Declaring that Powell is compatible with no regularization now allows fitting just like with built-in solvers:
 
 ```{code-cell} ipython3
 nmo.regularizer.UnRegularized.allow_solver("Powell")
