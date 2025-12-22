@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 (developers-solvers)=
-=======
->>>>>>> development
 # The `solvers` Module
 
 ## Background
