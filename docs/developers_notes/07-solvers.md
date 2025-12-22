@@ -99,7 +99,8 @@ Note that what Optax calls Nesterov acceleration is not the [original method dev
 Similarly to NAG, an accelerated proximal gradient algorithm ([FISTA](https://www.ceremade.dauphine.fr/~carlier/FISTA)) was [ported from JAXopt](https://github.com/flatironinstitute/nemos/pull/411) as `OptimistixFISTA`.
 
 Available solvers and which implementation they dispatch to are defined in the solver registry.
-A list of available solvers is provided by `nemos.solvers.list_available_solvers`, and extended documentation about each solver can be accessed using {py:func}`nemos.solvers.get_solver_documentation`.
+A list of available algorithms is provided by {py:func}`nemos.solvers.list_available_algorithms`.
+All solvers in the registry can be listed with {py:func}`nemos.solvers.list_available_solvers`, and extended documentation about each solver can be accessed using {py:func}`nemos.solvers.get_solver_documentation`.
 
 (custom-solvers)=
 ## Custom solvers
