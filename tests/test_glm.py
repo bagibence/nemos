@@ -102,10 +102,7 @@ class TestGLM:
             ("NonlinearCG", does_not_raise()),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
-            (
-                1,
-                pytest.raises(ValueError, match="The solver: 1 is not allowed "),
-            ),
+            (1, pytest.raises(TypeError, match="must be a string")),
         ],
     )
     def test_init_solver_type(self, solver_name, expectation, request, glm_class_type):
@@ -1746,9 +1743,9 @@ class TestGLM:
         loaded_params.update(fit_state)
 
         # Assert matching keys and values
-        assert initial_params.keys() == loaded_params.keys(), (
-            "Parameter keys mismatch after load."
-        )
+        assert (
+            initial_params.keys() == loaded_params.keys()
+        ), "Parameter keys mismatch after load."
 
         for key in initial_params:
             init_val = initial_params[key]
@@ -1756,17 +1753,17 @@ class TestGLM:
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
             elif isinstance(init_val, dict):
-                assert init_val == load_val, (
-                    f"{key} dict mismatch: {init_val} != {load_val}"
-                )
+                assert (
+                    init_val == load_val
+                ), f"{key} dict mismatch: {init_val} != {load_val}"
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(np.array(init_val), np.array(load_val)), (
-                    f"{key} array mismatch"
-                )
+                assert np.allclose(
+                    np.array(init_val), np.array(load_val)
+                ), f"{key} array mismatch"
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(load_val), (
-                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
-                )
+                assert _get_name(init_val) == _get_name(
+                    load_val
+                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
 
     @pytest.mark.parametrize("regularizer", ["Ridge"])
     @pytest.mark.parametrize(
@@ -1923,9 +1920,9 @@ class TestGLM:
             loaded_params.update(fit_state)
 
             # Assert matching keys and values
-            assert initial_params.keys() == loaded_params.keys(), (
-                "Parameter keys mismatch after load."
-            )
+            assert (
+                initial_params.keys() == loaded_params.keys()
+            ), "Parameter keys mismatch after load."
 
             unexpected_keys = set(mapping_dict) - set(initial_params)
             raise_exception = bool(unexpected_keys)
@@ -1952,44 +1949,44 @@ class TestGLM:
                             )
                         else:
                             mapping_obs = mapping_dict[key]
-                        assert _get_name(mapping_obs) == _get_name(load_val), (
-                            f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
-                        )
+                        assert _get_name(mapping_obs) == _get_name(
+                            load_val
+                        ), f"{key} observation model mismatch: {mapping_dict[key]} != {load_val}"
                     elif key == "regularizer":
                         if isinstance(mapping_dict[key], str):
                             mapping_reg = instantiate_regularizer(mapping_dict[key])
                         else:
                             mapping_reg = mapping_dict[key]
-                        assert _get_name(mapping_reg) == _get_name(load_val), (
-                            f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
-                        )
+                        assert _get_name(mapping_reg) == _get_name(
+                            load_val
+                        ), f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
                     elif key == "solver_name":
-                        assert mapping_dict[key] == load_val, (
-                            f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
-                        )
+                        assert (
+                            mapping_dict[key] == load_val
+                        ), f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
                     elif key == "regularizer_strength":
-                        assert mapping_dict[key] == load_val, (
-                            f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
-                        )
+                        assert (
+                            mapping_dict[key] == load_val
+                        ), f"{key} regularizer strength mismatch: {mapping_dict[key]} != {load_val}"
                     continue
 
             if isinstance(init_val, (int, float, str, type(None))):
                 assert init_val == load_val, f"{key} mismatch: {init_val} != {load_val}"
 
             elif isinstance(init_val, dict):
-                assert init_val == load_val, (
-                    f"{key} dict mismatch: {init_val} != {load_val}"
-                )
+                assert (
+                    init_val == load_val
+                ), f"{key} dict mismatch: {init_val} != {load_val}"
 
             elif isinstance(init_val, (np.ndarray, jnp.ndarray)):
-                assert np.allclose(np.array(init_val), np.array(load_val)), (
-                    f"{key} array mismatch"
-                )
+                assert np.allclose(
+                    np.array(init_val), np.array(load_val)
+                ), f"{key} array mismatch"
 
             elif isinstance(init_val, Callable):
-                assert _get_name(init_val) == _get_name(load_val), (
-                    f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
-                )
+                assert _get_name(init_val) == _get_name(
+                    load_val
+                ), f"{key} function mismatch: {_get_name(init_val)} != {_get_name(load_val)}"
 
     def test_save_and_load_nested_class(
         self, nested_regularizer, tmp_path, glm_class_type
@@ -2378,35 +2375,37 @@ class TestGLMObservationModel:
         """
         Fixture for test_repr_out
         """
+        from nemos.solvers._solver_registry import _resolve_backend
+
         if "poisson" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
             else:
-                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
 
         elif "gamma" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
             else:
-                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
 
         elif "bernoulli" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
             else:
-                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
+                return f"GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent[{_resolve_backend('GradientDescent', True)}]'\n)"
 
         elif "negativeBinomial" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return f"PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS[{_resolve_backend('LBFGS', True)}]'\n)"
             else:
-                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return f"GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS[{_resolve_backend('LBFGS', True)}]'\n)"
 
         elif "gaussian" in model_instantiation:
             if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return f"PopulationGLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS[{_resolve_backend('LBFGS', True)}]'\n)"
             else:
-                return "GLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
+                return f"GLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS[{_resolve_backend('LBFGS', True)}]'\n)"
 
         else:
             raise ValueError("Unknown model instantiation")
@@ -2785,7 +2784,6 @@ class TestGLMObservationModel:
         # check that the repr works after cloning
         repr(cls)
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
     @pytest.mark.parametrize("solver_name", ["LBFGS"])
     @pytest.mark.solver_related
     @pytest.mark.requires_x64
@@ -3546,9 +3544,9 @@ class TestPoissonGLM:
         )
         assert isinstance(func1, expected_type_solver)
         assert isinstance(func2, expected_type_link)
-        assert isinstance(convexity, expected_type_convexity), (
-            f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
-        )
+        assert isinstance(
+            convexity, expected_type_convexity
+        ), f"convexity type: {type(convexity)}, expected type: {expected_type_convexity}"
 
     @pytest.mark.parametrize("glm_type", ["", "population_"])
     @pytest.mark.parametrize("regr_setup", ["", "_pytree"])

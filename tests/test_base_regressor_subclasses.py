@@ -205,10 +205,7 @@ class TestModelCommons:
             ("NonlinearCG", does_not_raise()),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
-            (
-                1,
-                pytest.raises(ValueError, match="The solver: 1 is not allowed "),
-            ),
+            (1, pytest.raises(TypeError, match="solver_name must be a string")),
         ],
     )
     def test_init_solver_type(

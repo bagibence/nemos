@@ -67,6 +67,49 @@ def _raise_if_not_in_registry(algo_name: str):
         raise ValueError(f"No solver registered for algorithm {algo_name}.")
 
 
+def _resolve_backend(name: str, raise_if_given: bool) -> str:
+    """
+    Return the backend that will be used for the algorithm if not specified.
+
+    Parameters
+    ----------
+    name:
+        Name of the algorithm.
+    raise_if_given:
+        Raise an error if a backend is given, i.e. algo_name[backend_name]
+        format is used.
+
+    Returns
+    -------
+    Backend name extracted from the registry.
+    """
+    algo_name, backend = _parse_name(name)
+
+    if backend is not None:
+        if not raise_if_given:
+            return backend
+
+        raise ValueError(
+            f"Provide an algorithm name only. Got {algo_name} with backend {backend}."
+        )
+
+    _raise_if_not_in_registry(algo_name)
+    algo_versions = _registry[algo_name]
+
+    backend = _defaults.get(algo_name, None)
+    if backend is None:
+        if len(algo_versions) == 1:
+            backend = next(iter(algo_versions.keys()))
+        else:
+            _spec = " " if raise_if_given else " specify or "
+            raise ValueError(
+                f"Multiple backends and no default found for {algo_name}. "
+                f"Please{_spec}set a default backend."
+            )
+
+    return backend
+
+
 def get_solver(name: str) -> SolverSpec:
     """
     Fetch the solver spec. from the registry for a given solver.
@@ -81,22 +124,13 @@ def get_solver(name: str) -> SolverSpec:
     spec :
         Specification for the solver, listing algorithm name, backend, implementation class.
     """
-    algo_name, backend = _parse_name(name)
+    algo_name, _ = _parse_name(name)
+    backend = _resolve_backend(name, False)
 
     # make sure we have the algorithm
     _raise_if_not_in_registry(algo_name)
     algo_versions = _registry[algo_name]
 
-    # if not specified, try getting the default backend for the algorithm
-    if backend is None:
-        backend = _defaults.get(algo_name, None)
-    if backend is None:
-        if len(algo_versions) == 1:
-            backend = next(iter(algo_versions.keys()))
-        else:
-            raise ValueError(
-                f"Multiple backends and no default found for {algo_name}. Please specify or set a default backend."
-            )
     if backend not in algo_versions:
         raise ValueError(
             f"{backend} backend not available for {algo_name}. "
