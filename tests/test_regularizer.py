@@ -411,12 +411,12 @@ class TestUnRegularized:
         raise_exception = not callable(loss)
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer)
-        model._predict_and_compute_loss = loss
+        model.compute_loss = loss
         if raise_exception:
             with pytest.raises(TypeError, match="The `loss` must be a Callable"):
-                nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+                nmo.utils.assert_is_callable(model.compute_loss, "loss")
         else:
-            nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+            nmo.utils.assert_is_callable(model.compute_loss, "loss")
 
     @pytest.mark.parametrize(
         "solver",
@@ -430,7 +430,7 @@ class TestUnRegularized:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls())
         model.solver = solver
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         model.solver_run((true_params[0] * 0.0, true_params[1]), X, y)
 
     @pytest.mark.parametrize(
@@ -445,17 +445,16 @@ class TestUnRegularized:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls())
         model.solver = solver
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         model.solver_run(
             (jax.tree_util.tree_map(jnp.zeros_like, true_params[0]), true_params[1]),
             X.data,
             y,
         )
 
-    @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_output_match(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -463,12 +462,12 @@ class TestUnRegularized:
         model.set_params(regularizer=self.cls())
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
 
         # update solver name
         model_bfgs = copy.deepcopy(model)
         model_bfgs.solver = "BFGS"
-        model_bfgs.instantiate_solver()
+        model_bfgs.instantiate_solver(model_bfgs.compute_loss)
         weights_gd, intercepts_gd = model.solver_run(
             (true_params[0] * 0.0, true_params[1]), X, y
         )[0]
@@ -485,16 +484,16 @@ class TestUnRegularized:
             )
 
     @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_match_sklearn(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
         model.set_params(regularizer=self.cls())
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         weights_bfgs, intercepts_bfgs = model.solver_run(
             (true_params[0] * 0.0, true_params[1]), X, y
         )[0]
@@ -507,9 +506,9 @@ class TestUnRegularized:
             raise ValueError("UnRegularized GLM estimate does not match sklearn!")
 
     @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_match_sklearn_gamma(self, gammaGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = gammaGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -517,7 +516,7 @@ class TestUnRegularized:
         model.set_params(regularizer=self.cls())
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         weights_bfgs, intercepts_bfgs = model.solver_run(
             (true_params[0] * 0.0, true_params[1]), X, y
         )[0]
@@ -538,11 +537,11 @@ class TestUnRegularized:
     )
     # @pytest.mark.parametrize("solver", ["LBFGS", "GradientDescent", "SVRG"])
     @pytest.mark.parametrize("solver", ["LBFGS", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_match_statsmodels_gamma(
         self, inv_link_jax, link_sm, gammaGLM_model_instantiation, solver
     ):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = gammaGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -550,7 +549,7 @@ class TestUnRegularized:
         model.set_params(regularizer=self.cls())
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-13}
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         weights_bfgs, intercepts_bfgs = model.solver_run(
             model._initialize_parameters(X, y), X, y
         )[0]
@@ -576,6 +575,7 @@ class TestUnRegularized:
         ],
     )
     @pytest.mark.parametrize("solver", ["LBFGS", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_match_statsmodels_negative_binomial(
         self,
         inv_link_jax,
@@ -584,7 +584,6 @@ class TestUnRegularized:
         solver,
     ):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = negativeBinomialGLM_model_instantiation
         y = y.astype(
             float
@@ -595,7 +594,7 @@ class TestUnRegularized:
         model.set_params(regularizer=self.cls())
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-13}
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         weights_bfgs, intercepts_bfgs = model.solver_run(
             model._initialize_parameters(X, y), X, y
         )[0]
@@ -743,12 +742,12 @@ class TestRidge:
         raise_exception = not callable(loss)
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1.0)
-        model._predict_and_compute_loss = loss
+        model.compute_loss = loss
         if raise_exception:
             with pytest.raises(TypeError, match="The `loss` must be a Callable"):
-                nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+                nmo.utils.assert_is_callable(model.compute_loss, "loss")
         else:
-            nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+            nmo.utils.assert_is_callable(model.compute_loss, "loss")
 
     @pytest.mark.parametrize(
         "solver",
@@ -762,7 +761,7 @@ class TestRidge:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner((true_params[0] * 0.0, true_params[1]), X, y)
 
     @pytest.mark.parametrize(
@@ -777,7 +776,7 @@ class TestRidge:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner(
             (jax.tree_util.tree_map(jnp.zeros_like, true_params[0]), true_params[1]),
             X.data,
@@ -785,9 +784,9 @@ class TestRidge:
         )
 
     @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
+    @pytest.mark.requires_x64
     def test_solver_output_match(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -800,8 +799,8 @@ class TestRidge:
         model_bfgs = copy.deepcopy(model)
         model_bfgs.solver = "BFGS"
 
-        runner_gd = model.instantiate_solver().solver_run
-        runner_bfgs = model_bfgs.instantiate_solver().solver_run
+        runner_gd = model.instantiate_solver(model.compute_loss).solver_run
+        runner_bfgs = model_bfgs.instantiate_solver(model_bfgs.compute_loss).solver_run
 
         weights_gd, intercepts_gd = runner_gd(
             (true_params[0] * 0.0, true_params[1]), X, y
@@ -818,9 +817,9 @@ class TestRidge:
                 "Convex estimators should converge to the same numerical value."
             )
 
+    @pytest.mark.requires_x64
     def test_solver_match_sklearn(self, poissonGLM_model_instantiation):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -828,7 +827,7 @@ class TestRidge:
         model.solver_kwargs = {"tol": 10**-12}
         model.solver = "BFGS"
 
-        runner_bfgs = model.instantiate_solver().solver_run
+        runner_bfgs = model.instantiate_solver(model.compute_loss).solver_run
         weights_bfgs, intercepts_bfgs = runner_bfgs(
             (true_params[0] * 0.0, true_params[1]), X, y
         )[0]
@@ -844,9 +843,9 @@ class TestRidge:
         if (not match_weights) or (not match_intercepts):
             raise ValueError("Ridge GLM solver estimate does not match sklearn!")
 
+    @pytest.mark.requires_x64
     def test_solver_match_sklearn_gamma(self, gammaGLM_model_instantiation):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = gammaGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -855,7 +854,7 @@ class TestRidge:
         model.solver_kwargs = {"tol": 10**-12}
         model.regularizer_strength = 0.1
         model.solver = "BFGS"
-        runner_bfgs = model.instantiate_solver().solver_run
+        runner_bfgs = model.instantiate_solver(model.compute_loss).solver_run
         weights_bfgs, intercepts_bfgs = runner_bfgs(
             (true_params[0] * 0.0, true_params[1]), X, y
         )[0]
@@ -980,12 +979,12 @@ class TestLasso:
         raise_exception = not callable(loss)
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1)
-        model._predict_and_compute_loss = loss
+        model.compute_loss = loss
         if raise_exception:
             with pytest.raises(TypeError, match="The `loss` must be a Callable"):
-                nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+                nmo.utils.assert_is_callable(model.compute_loss, "loss")
         else:
-            nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+            nmo.utils.assert_is_callable(model.compute_loss, "loss")
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     def test_run_solver(self, solver, poissonGLM_model_instantiation):
@@ -995,7 +994,7 @@ class TestLasso:
 
         model.set_params(regularizer=self.cls(), regularizer_strength=1)
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner((true_params[0] * 0.0, true_params[1]), X, y)
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
@@ -1007,7 +1006,7 @@ class TestLasso:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1)
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner(
             (jax.tree_util.tree_map(jnp.zeros_like, true_params[0]), true_params[1]),
             X.data,
@@ -1015,9 +1014,9 @@ class TestLasso:
         )
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.requires_x64
     def test_solver_match_statsmodels(self, solver, poissonGLM_model_instantiation):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
@@ -1025,7 +1024,7 @@ class TestLasso:
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
 
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         weights, intercepts = runner((true_params[0] * 0.0, true_params[1]), X, y)[0]
 
         # instantiate the glm with statsmodels
@@ -1055,6 +1054,7 @@ class TestLasso:
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_str", [0.001, 0.01, 0.1, 1, 10])
+    @pytest.mark.requires_x64
     def test_lasso_pytree_match(
         self,
         reg_str,
@@ -1063,7 +1063,6 @@ class TestLasso:
         poissonGLM_model_instantiation,
     ):
         """Check pytree and array find same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, _, model, _, _ = poissonGLM_model_instantiation_pytree
         X_array, y, model_array, _, _ = poissonGLM_model_instantiation
 
@@ -1241,12 +1240,12 @@ class TestElasticNet:
         raise_exception = not callable(loss)
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=(1, 0.5))
-        model._predict_and_compute_loss = loss
+        model.compute_loss = loss
         if raise_exception:
             with pytest.raises(TypeError, match="The `loss` must be a Callable"):
-                nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+                nmo.utils.assert_is_callable(model.compute_loss, "loss")
         else:
-            nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+            nmo.utils.assert_is_callable(model.compute_loss, "loss")
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     def test_run_solver(self, solver, poissonGLM_model_instantiation):
@@ -1256,7 +1255,7 @@ class TestElasticNet:
 
         model.set_params(regularizer=self.cls(), regularizer_strength=(1, 0.5))
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner((true_params[0] * 0.0, true_params[1]), X, y)
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
@@ -1268,7 +1267,7 @@ class TestElasticNet:
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=(1, 0.5))
         model.solver = solver
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         runner(
             (jax.tree_util.tree_map(jnp.zeros_like, true_params[0]), true_params[1]),
             X.data,
@@ -1278,11 +1277,11 @@ class TestElasticNet:
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_strength", [1.0, 0.5, 0.1])
     @pytest.mark.parametrize("reg_ratio", [1.0, 0.5, 0.2])
+    @pytest.mark.requires_x64
     def test_solver_match_statsmodels(
         self, solver, reg_strength, reg_ratio, poissonGLM_model_instantiation
     ):
         """Test that different solvers converge to the same solution."""
-        jax.config.update("jax_enable_x64", True)
         # with jax.disable_jit():
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
@@ -1293,7 +1292,7 @@ class TestElasticNet:
         model.solver = solver
         model.solver_kwargs = {"tol": 10**-12, "maxiter": 10000}
 
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         weights, intercepts = runner((true_params[0] * 0.0, true_params[1]), X, y)[0]
 
         model.fit(X, y)
@@ -1318,9 +1317,9 @@ class TestElasticNet:
         glm_params = jnp.hstack((intercepts, weights.flatten()))
         assert np.allclose(sm_params, glm_params)
 
+    @pytest.mark.requires_x64
     def test_loss_convergence(self):
         """Test that penalized loss converges to the same value as statsmodels and the proximal operator."""
-        jax.config.update("jax_enable_x64", True)
         # generate toy data
         np.random.seed(123)
         num_samples, num_features = 1000, 5
@@ -1340,7 +1339,7 @@ class TestElasticNet:
 
         # use the penalized loss function to solve optimization via Nelder-Mead
         penalized_loss = lambda p, x, y: model_PG.regularizer.penalized_loss(
-            model_PG._predict_and_compute_loss, model_PG.regularizer_strength
+            model_PG.compute_loss, model_PG.regularizer_strength
         )(
             (
                 p[1:],
@@ -1389,6 +1388,7 @@ class TestElasticNet:
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_str", [0.001, 0.01, 0.1, 1, 10])
+    @pytest.mark.requires_x64
     def test_elasticnet_pytree_match(
         self,
         reg_str,
@@ -1397,7 +1397,6 @@ class TestElasticNet:
         poissonGLM_model_instantiation,
     ):
         """Check pytree and array find same solution."""
-        jax.config.update("jax_enable_x64", True)
         X, _, model, _, _ = poissonGLM_model_instantiation_pytree
         X_array, y, model_array, _, _ = poissonGLM_model_instantiation
 
@@ -1560,13 +1559,13 @@ class TestGroupLasso:
 
         regularizer = self.cls(mask=mask)
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1.0)
-        model._predict_and_compute_loss = loss
+        model.compute_loss = loss
 
         if raise_exception:
             with pytest.raises(TypeError, match="The `loss` must be a Callable"):
-                nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+                nmo.utils.assert_is_callable(model.compute_loss, "loss")
         else:
-            nmo.utils.assert_is_callable(model._predict_and_compute_loss, "loss")
+            nmo.utils.assert_is_callable(model.compute_loss, "loss")
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     def test_run_solver(self, solver, poissonGLM_model_instantiation):
@@ -1583,7 +1582,7 @@ class TestGroupLasso:
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
         model.solver = solver
 
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         model.solver_run((true_params[0] * 0.0, true_params[1]), X, y)
 
     @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
@@ -1601,7 +1600,7 @@ class TestGroupLasso:
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
         model.solver = solver
 
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
         state = model.solver_init_state(true_params, X, y)
         # asses that state is a NamedTuple by checking tuple type and the availability of some NamedTuple
         # specific namespace attributes
@@ -1622,7 +1621,7 @@ class TestGroupLasso:
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
         model.solver = solver
 
-        model.instantiate_solver()
+        model.instantiate_solver(model.compute_loss)
 
         state = model.solver_init_state((true_params[0] * 0.0, true_params[1]), X, y)
 
@@ -1780,7 +1779,7 @@ class TestGroupLasso:
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
         model.solver = "ProximalGradient"
 
-        runner = model.instantiate_solver().solver_run
+        runner = model.instantiate_solver(model.compute_loss).solver_run
         params, _ = runner((true_params[0] * 0.0, true_params[1]), X, y)
 
         zeros_est = params[0] == 0
@@ -1929,6 +1928,170 @@ class TestGroupLasso:
         )
         model.solver = solver
         model.fit(X, y)
+
+
+@pytest.mark.parametrize(
+    "regularizer",
+    [
+        nmo.regularizer.UnRegularized(),
+        nmo.regularizer.Ridge(),
+        nmo.regularizer.Lasso(),
+        nmo.regularizer.GroupLasso(mask=np.eye(5)),
+        nmo.regularizer.ElasticNet(),
+    ],
+)
+class TestPenalizedLossAuxiliaryVariables:
+    """Test that penalized_loss correctly handles auxiliary variables."""
+
+    def test_single_value_return(self, regularizer):
+        """Test backward compatibility: loss returning single value."""
+
+        def simple_loss(params, X, y):
+            return jnp.mean((y - X @ params[0] - params[1]) ** 2)
+
+        # ElasticNet requires (strength, ratio) tuple
+        reg_strength = (
+            (0.1, 0.5) if isinstance(regularizer, nmo.regularizer.ElasticNet) else 0.1
+        )
+        penalized = regularizer.penalized_loss(
+            simple_loss, regularizer_strength=reg_strength
+        )
+
+        params = (jnp.ones(5), jnp.array(0.0))
+        X = jnp.ones((10, 5))
+        y = jnp.ones(10)
+
+        result = penalized(params, X, y)
+
+        # Should return a single scalar value
+        assert isinstance(result, jnp.ndarray)
+        assert result.shape == ()
+        assert jnp.isfinite(result)
+
+    def test_tuple_return_with_aux(self, regularizer):
+        """Test that loss returning (loss, aux) preserves auxiliary variable."""
+
+        def loss_with_aux(params, X, y):
+            predictions = X @ params[0] + params[1]
+            loss = jnp.mean((y - predictions) ** 2)
+            aux = {"predictions": predictions, "mse": loss}
+            return loss, aux
+
+        # ElasticNet requires (strength, ratio) tuple
+        reg_strength = (
+            (0.1, 0.5) if isinstance(regularizer, nmo.regularizer.ElasticNet) else 0.1
+        )
+        penalized = regularizer.penalized_loss(
+            loss_with_aux, regularizer_strength=reg_strength
+        )
+
+        params = (jnp.ones(5), jnp.array(0.0))
+        X = jnp.ones((10, 5))
+        y = jnp.ones(10)
+
+        result = penalized(params, X, y)
+
+        # Should return a tuple (penalized_loss, aux)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+        penalized_loss_value, aux = result
+
+        # Check that penalized loss is a scalar
+        assert isinstance(penalized_loss_value, jnp.ndarray)
+        assert penalized_loss_value.shape == ()
+        assert jnp.isfinite(penalized_loss_value)
+
+        # Check that auxiliary variable is preserved
+        assert isinstance(aux, dict)
+        assert "predictions" in aux
+        assert "mse" in aux
+        assert aux["predictions"].shape == (10,)
+
+        # Check that penalized loss > original loss (penalty added)
+        if not isinstance(regularizer, nmo.regularizer.UnRegularized):
+            assert penalized_loss_value > aux["mse"]
+
+    def test_invalid_tuple_single_element(self, regularizer):
+        """Test that single-element tuple raises error."""
+
+        def bad_loss(params, X, y):
+            return (jnp.mean((y - X @ params[0] - params[1]) ** 2),)
+
+        # ElasticNet requires (strength, ratio) tuple
+        reg_strength = (
+            (0.1, 0.5) if isinstance(regularizer, nmo.regularizer.ElasticNet) else 0.1
+        )
+        penalized = regularizer.penalized_loss(
+            bad_loss, regularizer_strength=reg_strength
+        )
+
+        params = (jnp.ones(5), jnp.array(0.0))
+        X = jnp.ones((10, 5))
+        y = jnp.ones(10)
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid loss function return.*returns a tuple with 1 value",
+        ):
+            penalized(params, X, y)
+
+    def test_invalid_tuple_three_elements(self, regularizer):
+        """Test that 3+ element tuple raises error."""
+
+        def bad_loss(params, X, y):
+            loss = jnp.mean((y - X @ params[0] - params[1]) ** 2)
+            return loss, {"aux": 1}, {"extra": 2}
+
+        # ElasticNet requires (strength, ratio) tuple
+        reg_strength = (
+            (0.1, 0.5) if isinstance(regularizer, nmo.regularizer.ElasticNet) else 0.1
+        )
+        penalized = regularizer.penalized_loss(
+            bad_loss, regularizer_strength=reg_strength
+        )
+
+        params = (jnp.ones(5), jnp.array(0.0))
+        X = jnp.ones((10, 5))
+        y = jnp.ones(10)
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid loss function return.*returns a tuple with 3 values",
+        ):
+            penalized(params, X, y)
+
+    def test_penalty_correctly_added_to_loss_with_aux(self, regularizer):
+        """Test that penalty is correctly added when aux variables are present."""
+
+        def loss_with_aux(params, X, y):
+            predictions = X @ params[0] + params[1]
+            loss = jnp.mean((y - predictions) ** 2)
+            return loss, {"predictions": predictions}
+
+        # Get unpenalized loss
+        params = (jnp.ones(5), jnp.array(0.0))
+        X = jnp.ones((10, 5))
+        y = jnp.zeros(10)
+
+        unpenalized_loss, _ = loss_with_aux(params, X, y)
+
+        # ElasticNet requires (strength, ratio) tuple
+        reg_strength = (
+            (1.0, 0.5) if isinstance(regularizer, nmo.regularizer.ElasticNet) else 1.0
+        )
+
+        # Get penalized loss
+        penalized = regularizer.penalized_loss(
+            loss_with_aux, regularizer_strength=reg_strength
+        )
+        penalized_loss_value, aux = penalized(params, X, y)
+
+        # Calculate expected penalty
+        expected_penalty = regularizer._penalization(params, reg_strength)
+
+        # Check that penalized loss = unpenalized loss + penalty
+        assert jnp.isclose(penalized_loss_value, unpenalized_loss + expected_penalty)
 
 
 def test_available_regularizer_match():

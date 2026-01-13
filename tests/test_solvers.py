@@ -24,8 +24,8 @@ pytestmark = pytest.mark.solver_related
         ("ridge_regression_tree", 1e-4),
     ],
 )
+@pytest.mark.requires_x64
 def test_svrg_linear_or_ridge_regression(request, regr_setup, stepsize):
-    jax.config.update("jax_enable_x64", True)
     X, y, _, params, loss = request.getfixturevalue(regr_setup)
 
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
@@ -46,8 +46,8 @@ def test_svrg_linear_or_ridge_regression(request, regr_setup, stepsize):
         "ridge_regression_tree",
     ],
 )
+@pytest.mark.requires_x64
 def test_svrg_init_state_default(request, regr_setup):
-    jax.config.update("jax_enable_x64", True)
     X, y, _, params, loss = request.getfixturevalue(regr_setup)
 
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
@@ -69,10 +69,10 @@ def test_svrg_init_state_default(request, regr_setup):
         "ridge_regression_tree",
     ],
 )
+@pytest.mark.requires_x64
 def test_svrg_init_state_key(request, regr_setup):
     random_key = jax.random.key(1000)
 
-    jax.config.update("jax_enable_x64", True)
     X, y, _, params, loss = request.getfixturevalue(regr_setup)
 
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
@@ -93,8 +93,8 @@ def test_svrg_init_state_key(request, regr_setup):
     "solver_class, prox, prox_lambda",
     [(SVRG, None, None), (ProxSVRG, jaxopt.prox.prox_ridge, 0.1)],
 )
+@pytest.mark.requires_x64
 def test_svrg_update_needs_df_xs(request, regr_setup, solver_class, prox, prox_lambda):
-    jax.config.update("jax_enable_x64", True)
     X, y, _, params, loss = request.getfixturevalue(regr_setup)
 
     param_init = jax.tree_util.tree_map(np.zeros_like, params)
@@ -137,7 +137,7 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
         solver=solver_name,
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
     )
-    glm.instantiate_solver()
+    glm.instantiate_solver(glm.compute_loss)
 
     # currently glm._solver_instance is a Wrapped(Prox)SVRG
     solver = glm._solver_instance._solver
@@ -173,7 +173,7 @@ def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver, mask, glm_class
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
         **kwargs,
     )
-    glm.instantiate_solver()
+    glm.instantiate_solver(glm.compute_loss)
 
     # currently glm._solver_instance is a Wrapped(Prox)SVRG
     solver = glm._solver_instance._solver
@@ -312,6 +312,7 @@ def test_svrg_glm_update(
             np.array([[0, 1, 0, 1, 1], [1, 0, 1, 0, 0]]).astype(float),
         ),
         ("GroupLasso", "ProximalGradient", np.array([[1, 1, 1, 1, 1]]).astype(float)),
+        ("Ridge", "GradientDescent", None),
         ("Ridge", "SVRG", None),
         ("UnRegularized", "SVRG", None),
     ],
@@ -324,7 +325,7 @@ def test_svrg_glm_update(
     "glm_class",
     [nmo.glm.GLM, nmo.glm.PopulationGLM],
 )
-def test_svrg_glm_fit(
+def test_maxiter_is_respected(
     glm_class,
     regularizer_name,
     solver_name,
@@ -337,10 +338,18 @@ def test_svrg_glm_fit(
     # set the tolerance such that the solvers never hit their convergence criterion
     # and run until maxiter is reached
     backend = os.getenv("NEMOS_SOLVER_BACKEND")
-    if backend is not None:
-        use_jaxopt_tol = backend == "jaxopt"
-    else:
-        use_jaxopt_tol = "jaxopt" in str(nmo.solvers.get_solver(solver_name)).lower()
+    solver_class_name = str(nmo.solvers.get_solver(solver_name))
+
+    use_jaxopt_tol = False
+    if backend == "jaxopt":
+        use_jaxopt_tol = True
+
+    if "jaxopt" in solver_class_name.lower():
+        use_jaxopt_tol = True
+
+    if "optimistix" in solver_class_name.lower():
+        use_jaxopt_tol = False
+
     tol = -1.0 if use_jaxopt_tol else 0.0
     solver_kwargs = {"maxiter": maxiter, "tol": tol}
 
@@ -433,8 +442,8 @@ def test_svrg_glm_update_needs_full_grad_at_reference_point(
         ("ridge_regression_tree", 1e-4),
     ],
 )
+@pytest.mark.requires_x64
 def test_svrg_update_converges(request, regr_setup, stepsize):
-    jax.config.update("jax_enable_x64", True)
     X, y, _, analytical_params, loss = request.getfixturevalue(regr_setup)
 
     loss_grad = jax.jit(jax.grad(loss))

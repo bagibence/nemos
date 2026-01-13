@@ -4,7 +4,7 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.16.4
+    jupytext_version: 1.18.1
 kernelspec:
   display_name: Python 3 (ipykernel)
   language: python
@@ -54,7 +54,6 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import pynapple as nap
-from sklearn.linear_model import LinearRegression
 
 import nemos as nmo
 ```
@@ -118,22 +117,22 @@ You can see that the calcium signals are both nonnegative, and noisy. One (neuro
 
 
 
-We can also plot tuning curves, plotting mean calcium activity as a function of head direction, using the function [`compute_1d_tuning_curves_continuous`](https://pynapple.org/generated/pynapple.process.tuning_curves.html#pynapple.process.tuning_curves.compute_1d_tuning_curves_continuous).
+We can also plot tuning curves, plotting mean calcium activity as a function of head direction, using the function [`compute_tuning_curves_continuous`](https://pynapple.org/generated/pynapple.process.tuning_curves.html#pynapple.process.tuning_curves.compute_tuning_curves).
 Here `data['ry']` is a [`Tsd`](https://pynapple.org/generated/pynapple.Tsd.html) that contains the angular head-direction of the animal between 0 and 2$\pi$.
 
 ```{code-cell} ipython3
-tcurves = nap.compute_1d_tuning_curves_continuous(transients, data['ry'], 120)
+tcurves = nap.compute_tuning_curves(transients, data['ry'], 120, feature_names=["angles"])
 ```
 
 The function returns a pandas DataFrame. Let's plot the tuning curves for neurons 4 and 35.
 
 ```{code-cell} ipython3
 fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-ax[0].plot(tcurves.iloc[:, 4])
+ax[0].plot(tcurves.angles, tcurves[4])
 ax[0].set_xlabel("Angle (rad)")
 ax[0].set_ylabel("Firing rate (Hz)")
 ax[0].set_title("Trace 4")
-ax[1].plot(tcurves.iloc[:, 35])
+ax[1].plot(tcurves.angles, tcurves[35])
 ax[1].set_xlabel("Angle (rad)")
 ax[1].set_title("Trace 35")
 plt.tight_layout()
@@ -190,7 +189,7 @@ Different option are possible. With a soft-plus we are assuming an "additive" ef
 :::
 
 ```{code-cell} ipython3
-model = nmo.glm.GLM(
+gamma_model = nmo.glm.GLM(
     solver_kwargs=dict(tol=10**-13),
     regularizer="Ridge",
     regularizer_strength=0.02,
@@ -267,33 +266,32 @@ Ytest = Y.restrict(test_ep)
 It's time to fit the model on the data from the neuron we left out.
 
 ```{code-cell} ipython3
-model.fit(Xtrain, Ytrain[:, neu])
+gamma_model.fit(Xtrain, Ytrain[:, neu])
 ```
 
 ## Model comparison
 
+We can compare the Gamma GLM to a standard Gaussian GLM. Nemos implements Gaussian GLMs as well.
 
 
-
-We can compare this to scikit-learn [linear regression](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html).
 
 ```{code-cell} ipython3
-mdl = LinearRegression()
-valid = ~jnp.isnan(Xtrain.d.sum(axis=1)) # Scikit learn does not like nans.
-mdl.fit(Xtrain[valid], Ytrain[valid, neu])
+gaussian_model = nmo.glm.GLM(
+    observation_model="Gaussian",    
+    regularizer="Ridge",
+    regularizer_strength=0.02,
+    solver_kwargs=dict(tol=10**-13),
+)
+
+gaussian_model.fit(Xtrain, Ytrain[:, neu])
 ```
+
 
 We now have 2 models we can compare. Let's predict the activity of the neuron during the test epoch.
 
 ```{code-cell} ipython3
-yp = model.predict(Xtest)
-ylreg = mdl.predict(Xtest) # Notice that this is not a pynapple object.
-```
-
-Unfortunately scikit-learn has not adopted pynapple yet. Let's convert `ylreg` to a pynapple object to make our life easier.
-
-```{code-cell} ipython3
-ylreg = nap.Tsd(t=yp.t, d=ylreg, time_support = yp.time_support)
+yp = gamma_model.predict(Xtest)
+ylreg = gaussian_model.predict(Xtest)
 ```
 
 Let's plot the predicted activity for the first 60 seconds of data.
@@ -306,31 +304,33 @@ ep_to_plot = nap.IntervalSet(test_ep.start+20, test_ep.start+80)
 plt.figure()
 plt.plot(Ytest[:,neu].restrict(ep_to_plot), "r", label="true", linewidth=2)
 plt.plot(yp.restrict(ep_to_plot), "k", label="gamma-nemos", alpha=1)
-plt.plot(ylreg.restrict(ep_to_plot), "g", label="linreg-sklearn", alpha=0.5)
+plt.plot(ylreg.restrict(ep_to_plot), "g", label="gaussian-nemos", alpha=0.5)
 plt.legend(loc='best')
 plt.xlabel("Time (s)")
 plt.ylabel("Fluorescence")
 plt.show()
 ```
 
-While there is some variability in the fit for both models, one advantage of the gamma distribution is clear: the nonnegativity constraint is followed with the data.
- This is required for using GLMs to predict the firing rate, which must be positive, in response to simulated inputs. See Peyrache et al. 2018[$^{[1]}$](#ref-1) for an example of simulating activity with a GLM.
+While there is some variability in the fit for both models, one advantage of the gamma distribution is clear: the nonnegativity 
+constraint is followed with the data.
+This is required for using GLMs to predict the firing rate, which must be positive, in response to simulated inputs. 
+See Peyrache et al. 2018[$^{[1]}$](#ref-1) for an example of simulating activity with a GLM.
 
-Another way to compare models is to compute tuning curves. Here we use the function [`compute_1d_tuning_curves_continuous`](https://pynapple.org/generated/pynapple.process.tuning_curves.html#pynapple.process.tuning_curves.compute_1d_tuning_curves_continuous) from pynapple.
+Another way to compare models is to compute tuning curves. Here we use the function [`compute_tuning_curves`](https://pynapple.org/generated/pynapple.process.tuning_curves.html#pynapple.process.tuning_curves.compute_tuning_curves) from pynapple.
 
 ```{code-cell} ipython3
-real_tcurves = nap.compute_1d_tuning_curves_continuous(transients, data['ry'], 120, ep=test_ep)
-gamma_tcurves = nap.compute_1d_tuning_curves_continuous(yp, data['ry'], 120, ep=test_ep)
-linreg_tcurves = nap.compute_1d_tuning_curves_continuous(ylreg, data['ry'], 120, ep=test_ep)
+real_tcurves = nap.compute_tuning_curves(transients, data['ry'], 120, epochs=test_ep, feature_names=["hd"])
+gamma_tcurves = nap.compute_tuning_curves(yp, data['ry'], 120, epochs=test_ep, feature_names=["hd"])
+linreg_tcurves = nap.compute_tuning_curves(ylreg, data['ry'], 120, epochs=test_ep, feature_names=["hd"])
 ```
 
 Let's plot them.
 
 ```{code-cell} ipython3
 fig = plt.figure()
-plt.plot(real_tcurves[neu], "r", label="true", linewidth=2)
-plt.plot(gamma_tcurves, "k", label="gamma-nemos", alpha=1)
-plt.plot(linreg_tcurves, "g", label="linreg-sklearn", alpha=0.5)
+plt.plot(real_tcurves.hd, real_tcurves.sel(unit=neu), "r", label="true", linewidth=2)
+plt.plot(gamma_tcurves.hd, gamma_tcurves[0], "k", label="gamma-nemos", alpha=1)
+plt.plot(linreg_tcurves.hd, linreg_tcurves[0], "g", label="gaussian-nemos", alpha=0.5)
 plt.legend(loc='best')
 plt.ylabel("Fluorescence")
 plt.xlabel("Head-direction (rad)")

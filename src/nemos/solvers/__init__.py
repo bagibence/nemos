@@ -8,6 +8,7 @@ from ._abstract_solver import (
     SolverState,
     StepResult,
 )
+from ._fista import OptimistixFISTA, OptimistixNAG
 from ._jaxopt_solvers import (
     JaxoptBFGS,
     JaxoptGradientDescent,
@@ -18,7 +19,6 @@ from ._jaxopt_solvers import (
 from ._optax_optimistix_solvers import (
     OptimistixOptaxGradientDescent,
     OptimistixOptaxLBFGS,
-    OptimistixOptaxProximalGradient,
 )
 from ._optimistix_solvers import OptimistixBFGS, OptimistixNonlinearCG
 from ._solver_doc_helper import get_solver_documentation
