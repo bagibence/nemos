@@ -9,7 +9,7 @@ from abc import abstractmethod
 from copy import deepcopy
 from functools import wraps
 from pathlib import Path
-from typing import Any, cast, Generic, NamedTuple, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Generic, Optional, Tuple, Type, TypeVar, Union, cast
 
 import jax
 import jax.numpy as jnp
@@ -22,7 +22,7 @@ from . import solvers, tree_utils, utils, validation
 from ._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regularizer
 from .base_class import Base
 from .regularizer import GroupLasso, Regularizer
-from .solvers._abstract_solver import SolverProtocol, SolverState, StepResult
+from .solvers._abstract_solver import SolverProtocol
 from .type_casting import cast_to_jax
 from .typing import (
     DESIGN_INPUT_TYPE,
