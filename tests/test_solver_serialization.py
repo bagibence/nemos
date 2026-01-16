@@ -98,7 +98,7 @@ def test_solver_serialization_with_registered_solver(tmp_path, request, glm_clas
     """Custom solver is reconstructed when registered in the solver registry."""
 
     glm_class = request.getfixturevalue(glm_class_type)
-    nmo.solvers._solver_registry.register(
+    nmo.solvers.register(
         RegisteredDummySolver.__name__,
         RegisteredDummySolver,
         backend="custom",
@@ -106,7 +106,7 @@ def test_solver_serialization_with_registered_solver(tmp_path, request, glm_clas
         default=True,
     )
 
-    model = glm_class(solver=RegisteredDummySolver)
+    model = glm_class(solver=RegisteredDummySolver.__name__)
     save_path = tmp_path / "model_solver_registered.npz"
     model.save_params(save_path)
 
@@ -130,7 +130,7 @@ def test_solver_serialization_with_mapping_dict(tmp_path, request, glm_class_typ
 
     assert loaded.solver.implementation is MappedDummySolver
     assert loaded.solver.algo_name == MappedDummySolver.__name__
-    assert loaded.solver.backend == "custom"
+    assert loaded.solver.backend == "unchecked_custom"
 
 
 @pytest.mark.parametrize("glm_class_type", ["glm_class", "population_glm_class"])
@@ -158,7 +158,7 @@ def test_solver_serialization_registry_impl_mismatch(tmp_path, request, glm_clas
         replace=True,
         default=True,
     )
-    model = glm_class(solver=RegistryMismatchSolverV1)
+    model = glm_class(solver=RegistryMismatchSolverV1.__name__)
     save_path = tmp_path / "model_solver_mismatch.npz"
     model.save_params(save_path)
 

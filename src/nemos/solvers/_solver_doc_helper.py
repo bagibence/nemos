@@ -34,6 +34,8 @@ def get_solver_documentation(
     -------------------
     - batch_size
     - fun
+    - has_aux
+    - init_params
     - key
     - maxiter
     - stepsize

@@ -4,13 +4,10 @@ from dataclasses import dataclass
 from typing import Type
 
 from ._abstract_solver import SolverProtocol
-from ._jaxopt_solvers import (
-    JaxoptBFGS,
-    JaxoptGradientDescent,
-    JaxoptLBFGS,
-    JaxoptNonlinearCG,
-    JaxoptProximalGradient,
-)
+from ._fista import OptimistixFISTA, OptimistixNAG
+from ._jaxopt_solvers import JAXOPT_AVAILABLE
+from ._optax_optimistix_solvers import OptimistixOptaxLBFGS
+from ._optimistix_solvers import OptimistixBFGS, OptimistixNonlinearCG
 from ._svrg import WrappedProxSVRG, WrappedSVRG
 
 
@@ -207,10 +204,25 @@ def list_available_algorithms() -> list[str]:
     return list(_registry.keys())
 
 
-register("GradientDescent", JaxoptGradientDescent, "jaxopt", default=True)
-register("ProximalGradient", JaxoptProximalGradient, "jaxopt", default=True)
-register("LBFGS", JaxoptLBFGS, "jaxopt", default=True)
-register("BFGS", JaxoptBFGS, "jaxopt", default=True)
-register("NonlinearCG", JaxoptNonlinearCG, "jaxopt", default=True)
+register("GradientDescent", OptimistixNAG, default=True)
+register("ProximalGradient", OptimistixFISTA, default=True)
+register("LBFGS", OptimistixOptaxLBFGS, default=True)
+register("BFGS", OptimistixBFGS, default=True)
+register("NonlinearCG", OptimistixNonlinearCG, default=True)
 register("SVRG", WrappedSVRG, "nemos", default=True)
 register("ProxSVRG", WrappedProxSVRG, "nemos", default=True)
+
+if JAXOPT_AVAILABLE:
+    from ._jaxopt_solvers import (
+        JaxoptBFGS,
+        JaxoptGradientDescent,
+        JaxoptLBFGS,
+        JaxoptNonlinearCG,
+        JaxoptProximalGradient,
+    )
+
+    register("GradientDescent", JaxoptGradientDescent, "jaxopt", default=False)
+    register("ProximalGradient", JaxoptProximalGradient, "jaxopt", default=False)
+    register("LBFGS", JaxoptLBFGS, "jaxopt", default=False)
+    register("BFGS", JaxoptBFGS, "jaxopt", default=False)
+    register("NonlinearCG", JaxoptNonlinearCG, "jaxopt", default=False)
