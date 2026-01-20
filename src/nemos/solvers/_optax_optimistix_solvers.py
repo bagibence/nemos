@@ -8,10 +8,9 @@ import optax
 import optimistix as optx
 
 from ..regularizer import Regularizer
-from ..typing import Pytree
-from ._optimistix_solvers import (
+from ..typing import Params, Pytree
+from ._optimistix_adapter import (
     DEFAULT_ATOL,
-    DEFAULT_MAX_STEPS,
     DEFAULT_RTOL,
     OptimistixAdapter,
 )
@@ -108,9 +107,11 @@ class OptimistixOptaxGradientDescent(AbstractOptimistixOptaxSolver):
         unregularized_loss: Callable,
         regularizer: Regularizer,
         regularizer_strength: float | None,
+        has_aux: bool,
+        init_params: Params | None = None,
         tol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
-        maxiter: int = DEFAULT_MAX_STEPS,
+        maxiter: int = 500,
         momentum: float | None = None,
         acceleration: bool = True,
         stepsize: float | None = None,
@@ -146,6 +147,8 @@ class OptimistixOptaxGradientDescent(AbstractOptimistixOptaxSolver):
             unregularized_loss,
             regularizer,
             regularizer_strength,
+            has_aux,
+            init_params=init_params,
             tol=tol,
             rtol=rtol,
             maxiter=maxiter,
@@ -192,9 +195,11 @@ class OptimistixOptaxLBFGS(AbstractOptimistixOptaxSolver):
         unregularized_loss: Callable,
         regularizer: Regularizer,
         regularizer_strength: float | None,
+        has_aux: bool,
+        init_params: Params | None = None,
         tol: float = DEFAULT_ATOL,
         rtol: float = DEFAULT_RTOL,
-        maxiter: int = DEFAULT_MAX_STEPS,
+        maxiter: int = 500,
         stepsize: float | None = None,
         memory_size: int = 10,
         scale_init_precond: bool = True,
@@ -219,6 +224,8 @@ class OptimistixOptaxLBFGS(AbstractOptimistixOptaxSolver):
             unregularized_loss,
             regularizer,
             regularizer_strength,
+            has_aux,
+            init_params=init_params,
             tol=tol,
             rtol=rtol,
             maxiter=maxiter,

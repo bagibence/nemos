@@ -32,6 +32,8 @@ def get_solver_documentation(solver: str | Type, show_help: bool = False) -> str
     -------------------
     - batch_size
     - fun
+    - has_aux
+    - init_params
     - key
     - maxiter
     - stepsize

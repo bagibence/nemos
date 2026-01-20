@@ -12,12 +12,20 @@ pytestmark = pytest.mark.solver_related
 @pytest.fixture
 def optimistix_solver_registry(monkeypatch):
     """Point GLM solver registry at the Optimistix implementations for this module."""
-    registry = nmo.solvers.solver_registry.copy()
-    optimistix_registry = registry | {
-        "GradientDescent": nmo.solvers.OptimistixNAG,
-        "ProximalGradient": nmo.solvers.OptimistixFISTA,
+    optimistix_registry = nmo.solvers._solver_registry._registry.copy()
+    nag_spec = nmo.solvers.SolverSpec(
+        "GradientDescent", "optimistix", nmo.solvers.OptimistixNAG
+    )
+    fista_spec = nmo.solvers.SolverSpec(
+        "ProximalGradient", "optimistix", nmo.solvers.OptimistixFISTA
+    )
+    optimistix_registry["GradientDescent"] = optimistix_registry["GradientDescent"] | {
+        "optimistix": nag_spec
     }
-    monkeypatch.setattr(nmo.solvers, "solver_registry", optimistix_registry)
+    optimistix_registry["ProximalGradient"] = optimistix_registry[
+        "ProximalGradient"
+    ] | {"optimistix": fista_spec}
+    monkeypatch.setattr(nmo.solvers._solver_registry, "_registry", optimistix_registry)
     return optimistix_registry
 
 
@@ -42,7 +50,7 @@ def test_glm_passes_adjoint_to_optimistix_config(
         solver_name=solver_name,
         solver_kwargs={"adjoint": adjoint},
     )
-    glm.instantiate_solver(glm.compute_loss)
+    glm._instantiate_solver(glm.compute_loss, None)
 
     solver_adapter = glm._solver
     assert isinstance(solver_adapter.config.adjoint, type(adjoint))
@@ -75,7 +83,7 @@ def test_fista_while_loop_kind_matches_adjoint(
         solver_name=solver_name,
         solver_kwargs={"adjoint": adjoint},
     )
-    glm.instantiate_solver(glm.compute_loss)
+    glm._instantiate_solver(glm.compute_loss, None)
 
     fista_solver = glm._solver._solver
     assert fista_solver.while_loop_kind == expected_kind
@@ -105,7 +113,7 @@ def test_fista_explicit_while_loop_kind_overrides_adjoint(
         solver_name=solver_name,
         solver_kwargs={"adjoint": adjoint, "while_loop_kind": while_loop_kind},
     )
-    glm.instantiate_solver(glm.compute_loss)
+    glm._instantiate_solver(glm.compute_loss, None)
 
     fista_solver = glm._solver._solver
     assert fista_solver.while_loop_kind == while_loop_kind
@@ -126,6 +134,7 @@ def test_fista_explicit_while_loop_kind_overrides_adjoint(
     os.getenv("NEMOS_SOLVER_BACKEND") != "optimistix",
     reason="Only run with the Optimistix backend",
 )
+@pytest.mark.filterwarnings(r"ignore:.*fit did not converge.*:RuntimeWarning")
 def test_fit_succeeds_with_mismatched_adjoint_and_while_loop_kind(
     optimistix_solver_registry,
     request,
