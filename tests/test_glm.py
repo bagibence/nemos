@@ -1624,87 +1624,37 @@ class TestGLMObservationModel:
         ).full_name
         lbfgs_solver_name = nmo.solvers.get_solver("LBFGS").full_name
         if "poisson" in model_instantiation:
-            if "population" in glm_type:
-                return (
-                    "PopulationGLM(\n    observation_model=PoissonObservations(),\n"
-                    "    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-            else:
-                return (
-                    "GLM(\n    observation_model=PoissonObservations(),\n"
-                    "    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-
+            observation_model = "PoissonObservations()"
+            inverse_link_function = "exp"
+            solver_name = default_solver_name
         elif "gamma" in model_instantiation:
-            if "population" in glm_type:
-                return (
-                    "PopulationGLM(\n    observation_model=GammaObservations(),\n"
-                    "    inverse_link_function=one_over_x,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-            else:
-                return (
-                    "GLM(\n    observation_model=GammaObservations(),\n"
-                    "    inverse_link_function=one_over_x,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-
+            observation_model = "GammaObservations()"
+            inverse_link_function = "one_over_x"
+            solver_name = default_solver_name
         elif "bernoulli" in model_instantiation:
-            if "population" in glm_type:
-                return (
-                    "PopulationGLM(\n    observation_model=BernoulliObservations(),\n"
-                    "    inverse_link_function=logistic,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-            else:
-                return (
-                    "GLM(\n    observation_model=BernoulliObservations(),\n"
-                    "    inverse_link_function=logistic,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{default_solver_name}'\n)"
-                )
-
+            observation_model = "BernoulliObservations()"
+            inverse_link_function = "logistic"
+            solver_name = default_solver_name
         elif "negativeBinomial" in model_instantiation:
-            if "population" in glm_type:
-                return (
-                    "PopulationGLM(\n"
-                    "    observation_model=NegativeBinomialObservations(scale=1.0),\n"
-                    "    inverse_link_function=exp,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{lbfgs_solver_name}'\n)"
-                )
-            else:
-                return (
-                    "GLM(\n"
-                    "    observation_model=NegativeBinomialObservations(scale=1.0),\n"
-                    "    inverse_link_function=exp,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{lbfgs_solver_name}'\n)"
-                )
-
+            observation_model = "NegativeBinomialObservations(scale=1.0)"
+            inverse_link_function = "exp"
+            solver_name = lbfgs_solver_name
         elif "gaussian" in model_instantiation:
-            if "population" in glm_type:
-                return (
-                    "PopulationGLM(\n    observation_model=GaussianObservations(),\n"
-                    "    inverse_link_function=identity,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{lbfgs_solver_name}'\n)"
-                )
-            else:
-                return (
-                    "GLM(\n    observation_model=GaussianObservations(),\n"
-                    "    inverse_link_function=identity,\n"
-                    "    regularizer=UnRegularized(),\n"
-                    f"    solver_name='{lbfgs_solver_name}'\n)"
-                )
-
+            observation_model = "GaussianObservations()"
+            inverse_link_function = "identity"
+            solver_name = lbfgs_solver_name
         else:
             raise ValueError("Unknown model instantiation")
+
+        class_name = "PopulationGLM" if "population" in glm_type else "GLM"
+        return (
+            f"{class_name}(\n"
+            f"    observation_model={observation_model},\n"
+            f"    inverse_link_function={inverse_link_function},\n"
+            "    regularizer=UnRegularized(),\n"
+            f"    solver_name='{solver_name}'\n"
+            ")"
+        )
 
     #######################
     # Test initialization #
