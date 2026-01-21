@@ -740,10 +740,16 @@ class BaseRegressor(abc.ABC, Base, Generic[UserProvidedParamsT, ModelParamsT]):
         string_attrs :
             List of attributes to be saved as strings.
         """
+        # importing here to avoid circular imports
+        from .io._solver_serialization import serialize_solver_spec
 
-        # extract model parameters
+        # extract model parameters and serialize solver spec with serialize_solver_spec
         model_params = self.get_params(deep=False)
-        model_params = _unpack_params(model_params, string_attrs)
+        model_params = _unpack_params(
+            model_params,
+            string_attrs,
+            extra_serializers=[serialize_solver_spec],
+        )
 
         # append the fit attributes to the model parameters
         model_params.update(fit_attrs)

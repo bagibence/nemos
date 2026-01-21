@@ -718,7 +718,9 @@ def _is_callable_or_class(obj):
     return callable(obj) or inspect.isclass(obj)
 
 
-def _unpack_params(params_dict: dict, string_attrs: list = None) -> dict:
+def _unpack_params(
+    params_dict: dict, string_attrs: list = None, extra_serializers: list = None
+) -> dict:
     """
     Convert a parameter dictionary into serializable format.
 
@@ -731,6 +733,10 @@ def _unpack_params(params_dict: dict, string_attrs: list = None) -> dict:
         Dictionary of parameters, possibly containing objects.
     string_attrs :
         List of attributes that should be converted to strings (e.g., `inverse_link_function`).
+    extra_serializers :
+        Optional list of callables taking a single value and returning a tuple
+        `(handled: bool, new_value: Any)`. If `handled` is True, `new_value` is used
+        in place of the original.
 
     Returns
     -------
@@ -740,11 +746,25 @@ def _unpack_params(params_dict: dict, string_attrs: list = None) -> dict:
 
     out = dict()
     for key, value in params_dict.items():
+        # try custom serializers first
+        if extra_serializers:
+            handled = False
+            for serializer in extra_serializers:
+                flag, new_val = serializer(value)
+                if flag:
+                    out[key] = new_val
+                    handled = True
+                    break
+            if handled:
+                continue
+
         # if the parameter is an objet with get_params/set_params,
         # extract its class name and parameters
         if hasattr(value, "get_params") and hasattr(value, "set_params"):
             cls_name = _get_name(value)
-            params = _unpack_params(value.get_params(deep=False), string_attrs)
+            params = _unpack_params(
+                value.get_params(deep=False), string_attrs, extra_serializers
+            )
             out[key] = {"class": cls_name, "params": params}
         else:
             # if the parameter is in string_attrs, store its name

@@ -21,6 +21,7 @@ from .._regularizer_builder import AVAILABLE_REGULARIZERS, instantiate_regulariz
 from ..glm import GLM, PopulationGLM
 from ..utils import _get_name, _unflatten_dict, get_env_metadata
 from ..validation import _suggest_keys
+from ._solver_serialization import deserialize_solver_spec
 
 MODEL_REGISTRY = {
     "nemos.glm.glm.GLM": GLM,
@@ -151,6 +152,12 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     # if any value from saved_params is a key in mapping_dict,
     # replace it with the corresponding value from mapping_dict
     saved_params, updated_keys = _apply_custom_map(saved_params, nested_map_dict)
+
+    # Reconstruct solver spec saved as primitives
+    if "solver" in saved_params:
+        saved_params["solver"] = deserialize_solver_spec(
+            saved_params["solver"], filename, mapping_dict
+        )
 
     if len(updated_keys) > 0:
         warnings.warn(
@@ -372,7 +379,7 @@ def inspect_npz(file_path: Union[str, Path]):
         print("Metadata\n--------")
         for k, v in metadata.items():
             label = f"{k} version"
-            print(f"{label:<{pad_len}}: {v}" f" (installed: {installed_env[k]})")
+            print(f"{label:<{pad_len}}: {v} (installed: {installed_env[k]})")
 
     print("\nModel class\n-----------")
     model_class = data.pop("model_class", None)
