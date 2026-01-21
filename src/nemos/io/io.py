@@ -75,7 +75,7 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     observation_model: GammaObservations()
     regularizer: Ridge()
     regularizer_strength: 0.1
-    solver: BFGS
+    solver: 'BFGS[...]' - SolverSpec(algo_name='BFGS', backend='custom', implementation=...)
     solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
     >>> # Save the model parameters to a file
     >>> model.save_params("model_params.npz")
@@ -88,7 +88,7 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     observation_model: GammaObservations()
     regularizer: Ridge()
     regularizer_strength: 0.1
-    solver: BFGS
+    solver: 'BFGS[...]' - SolverSpec(algo_name='BFGS', backend='custom', implementation=...)
     solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
 
     >>> # Loading a custom inverse link function
@@ -106,7 +106,7 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     observation_model: PoissonObservations()
     regularizer: UnRegularized()
     regularizer_strength: None
-    solver: GradientDescent
+    solver: 'GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='...', implementation=...)
     solver_kwargs: {}
     """
     # load the model from a .npz file

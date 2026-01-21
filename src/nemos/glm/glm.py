@@ -155,7 +155,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=PoissonObservations(),
         inverse_link_function=exp,
         regularizer=UnRegularized(),
-        solver='GradientDescent'
+        solver='GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='...', implementation=...)
     )
     >>> print("Regularizer type: ", type(model.regularizer))
     Regularizer type:  <class 'nemos.regularizer.UnRegularized'>
@@ -167,7 +167,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=GammaObservations(),
         inverse_link_function=one_over_x,
         regularizer=UnRegularized(),
-        solver='GradientDescent'
+        solver='GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='...', implementation=...)
     )
     >>> # or equivalently, passing the observation model object
     >>> nmo.glm.GLM(observation_model=nmo.observation_models.GammaObservations())
@@ -175,7 +175,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=GammaObservations(),
         inverse_link_function=one_over_x,
         regularizer=UnRegularized(),
-        solver='GradientDescent'
+        solver='GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='...', implementation=...)
     )
     >>> # define GLM model of PoissonObservations model with soft-plus NL
     >>> model = nmo.glm.GLM(inverse_link_function=jax.nn.softplus, solver="LBFGS")
@@ -1049,7 +1049,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
-        solver: BFGS
+        solver: 'BFGS[...]' - SolverSpec(algo_name='BFGS', backend='custom', implementation=...)
         solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
         >>> # Save the model parameters to a file
         >>> model.save_params("model_params.npz")
@@ -1062,7 +1062,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
-        solver: BFGS
+        solver: 'BFGS[...]' - SolverSpec(algo_name='BFGS', backend='custom', implementation=...)
         solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
 
         >>> # Saving and loading a custom inverse link function
@@ -1083,7 +1083,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model: PoissonObservations()
         regularizer: UnRegularized()
         regularizer_strength: None
-        solver: GradientDescent
+        solver: 'GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='custom', implementation=...)
         solver_kwargs: {}
         """
 
@@ -1220,7 +1220,7 @@ class PopulationGLM(GLM):
         observation_model=PoissonObservations(),
         inverse_link_function=exp,
         regularizer=UnRegularized(),
-        solver='GradientDescent'
+        solver='GradientDescent[...]' - SolverSpec(algo_name='GradientDescent', backend='...', implementation=...)
     )
     >>> # Check the fitted coefficients
     >>> print(model.coef_.shape)
