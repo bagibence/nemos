@@ -139,7 +139,7 @@ set after the model is initialized with the following syntax:
 model = nmo.glm.GLM(
     observation_model="Poisson",
     inverse_link_function=jax.nn.softplus,
-    solver_name="LBFGS",
+    solver="LBFGS",
     solver_kwargs={"tol":10**-10},
 )
 
@@ -164,7 +164,7 @@ Each [`Regularizer`](regularizers) has an associated attribute [`Regularizer.all
 which lists the optimizers that are suited for each optimization problem.
 For example, a [`Ridge`](nemos.regularizer.Ridge) is differentiable and can be fit with `GradientDescent`
 , `BFGS`, etc., while a [`Lasso`](nemos.regularizer.Lasso) should use the `ProximalGradient` method instead.
-If the provided `solver_name` is not listed in the `allowed_solvers` this will raise an
+If the provided `solver` is a string that is not listed in the `allowed_solvers` this will raise an
 exception.
 :::
 
@@ -215,7 +215,7 @@ We can compare the Ridge cross-validated results with other regularization schem
 **Lasso**
 
 ```{code-cell} ipython3
-model.set_params(regularizer=nmo.regularizer.Lasso(), solver_name="ProximalGradient")
+model.set_params(regularizer=nmo.regularizer.Lasso(), solver="ProximalGradient")
 cls = model_selection.GridSearchCV(model, parameter_grid, cv=2)
 cls.fit(X, spikes)
 
@@ -234,7 +234,7 @@ mask[0, [0, -1]] = 1
 mask[1, 1:-1] = 1
 
 regularizer = nmo.regularizer.GroupLasso(mask=mask)
-model.set_params(regularizer=regularizer, solver_name="ProximalGradient")
+model.set_params(regularizer=regularizer, solver="ProximalGradient")
 cls = model_selection.GridSearchCV(model, parameter_grid, cv=2)
 cls.fit(X, spikes)
 

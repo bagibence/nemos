@@ -90,7 +90,7 @@ For the `GradientDescent` solver, this can be done by setting the parameters `ac
 
 ```{code-cell} ipython3
 glm = nmo.glm.PopulationGLM(
-	solver_name="GradientDescent",
+	solver="GradientDescent",
 	solver_kwargs={"stepsize": 0.1, "acceleration": False}
 	)
 ```

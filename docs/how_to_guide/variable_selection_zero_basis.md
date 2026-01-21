@@ -112,7 +112,7 @@ basis_theta.label = "theta"
 # Set up pipeline
 pipeline = Pipeline([
     ("basis", basis_both.to_transformer()),
-    ("glm", nmo.glm.GLM(solver_name="LBFGS"))
+    ("glm", nmo.glm.GLM(solver="LBFGS"))
 ])
 
 # Test different input combinations

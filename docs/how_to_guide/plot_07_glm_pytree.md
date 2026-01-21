@@ -289,7 +289,7 @@ X = nmo.pytrees.FeaturePytree(head_direction=basis.compute_features(head_dir))
 Now we'll fit our GLM and then see what our head direction tuning looks like:
 
 ```{code-cell} ipython3
-model = nmo.glm.GLM(regularizer="Ridge", regularizer_strength=0.001, solver_name="LBFGS")
+model = nmo.glm.GLM(regularizer="Ridge", regularizer_strength=0.001, solver="LBFGS")
 model.fit(X, spikes)
 print(model.coef_['head_direction'])
 
@@ -342,7 +342,7 @@ Running the GLM is identical to before, but we can see that our coef_
 FeaturePytree now has two separate keys, one for each feature type.
 
 ```{code-cell} ipython3
-model = nmo.glm.GLM(solver_name="LBFGS")
+model = nmo.glm.GLM(solver="LBFGS")
 model.fit(X, spikes)
 model.coef_
 ```
