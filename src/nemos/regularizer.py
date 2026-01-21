@@ -226,6 +226,21 @@ class Regularizer(Base, abc.ABC):
                 f"{self.allowed_solvers}."
             )
 
+    @classmethod
+    def allow_solver(cls, algo_name: str) -> None:
+        """
+        Add an algorithm to the list of compatible solvers.
+
+        Parameters
+        ----------
+        algo_name :
+            Name of the optimization algorithm to add.
+        """
+        if algo_name in cls._allowed_solvers:
+            return
+
+        cls._allowed_solvers += (algo_name,)
+
     def __repr__(self):
         return format_repr(self)
 
