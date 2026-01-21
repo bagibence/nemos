@@ -74,7 +74,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
     :class:`nemos.solvers._svrg.SVRG` or its proximal variant
     :class:`nemos.solvers._svrg.ProxSVRG` solver,
     which take advantage of batched computation. You can change the solver by passing
-    ``"SVRG"`` as ``solver_name`` at model initialization.
+    ``"SVRG"`` as ``solver`` at model initialization.
 
     The performance of the SVRG solver depends critically on the choice of ``batch_size`` and ``stepsize``
     hyperparameters. These parameters control the size of the mini-batches used for gradient computations
@@ -113,7 +113,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
     regularizer_strength :
         Float that is default None. Sets the regularizer strength. If a user does not pass a value, and it is needed for
         regularization, a warning will be raised and the strength will default to 1.0.
-    solver_name :
+    solver :
         Solver to use for model optimization. Defines the optimization scheme and related parameters.
         The solver must be an appropriate match for the chosen regularizer.
         Default is ``None``. If no solver specified, one will be chosen based on the regularizer.
@@ -155,7 +155,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=PoissonObservations(),
         inverse_link_function=exp,
         regularizer=UnRegularized(),
-        solver_name='GradientDescent'
+        solver='GradientDescent'
     )
     >>> print("Regularizer type: ", type(model.regularizer))
     Regularizer type:  <class 'nemos.regularizer.UnRegularized'>
@@ -167,7 +167,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=GammaObservations(),
         inverse_link_function=one_over_x,
         regularizer=UnRegularized(),
-        solver_name='GradientDescent'
+        solver='GradientDescent'
     )
     >>> # or equivalently, passing the observation model object
     >>> nmo.glm.GLM(observation_model=nmo.observation_models.GammaObservations())
@@ -175,10 +175,10 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model=GammaObservations(),
         inverse_link_function=one_over_x,
         regularizer=UnRegularized(),
-        solver_name='GradientDescent'
+        solver='GradientDescent'
     )
     >>> # define GLM model of PoissonObservations model with soft-plus NL
-    >>> model = nmo.glm.GLM(inverse_link_function=jax.nn.softplus, solver_name="LBFGS")
+    >>> model = nmo.glm.GLM(inverse_link_function=jax.nn.softplus, solver="LBFGS")
     >>> print("Regularizer type: ", type(model.regularizer))
     Regularizer type:  <class 'nemos.regularizer.UnRegularized'>
     >>> print("Observation model: ", type(model.observation_model))
@@ -205,13 +205,13 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         inverse_link_function: Optional[Callable] = None,
         regularizer: Optional[Union[str, Regularizer]] = None,
         regularizer_strength: Optional[RegularizerStrength] = None,
-        solver_name: str = None,
+        solver: str = None,
         solver_kwargs: dict = None,
     ):
         super().__init__(
             regularizer=regularizer,
             regularizer_strength=regularizer_strength,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs=solver_kwargs,
         )
 
@@ -681,7 +681,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
                 "and/or setting `acceleration=False`."
             )
 
-        if not self._solver.get_optim_info(state).converged:
+        if not self._solver_instance.get_optim_info(state).converged:
             warnings.warn(
                 "The fit did not converge. "
                 "Consider the following:"
@@ -691,7 +691,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
                 "For the available options see the ``self.solver.__init__`` docstrings.",
                 RuntimeWarning,
             )
-        self.optim_info_ = self._solver.get_optim_info(state)
+        self.optim_info_ = self._solver_instance.get_optim_info(state)
 
         self._set_model_params(params)
 
@@ -1040,7 +1040,7 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         ...     regularizer="Ridge",
         ...     regularizer_strength=0.1,
         ...     observation_model="Gamma",
-        ...     solver_name="BFGS",
+        ...     solver="BFGS",
         ...     solver_kwargs=solver_args,
         ... )
         >>> for key, value in model.get_params().items():
@@ -1049,8 +1049,8 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
+        solver: BFGS
         solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
-        solver_name: BFGS
         >>> # Save the model parameters to a file
         >>> model.save_params("model_params.npz")
         >>> # Load the model from the saved file
@@ -1062,8 +1062,8 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         observation_model: GammaObservations()
         regularizer: Ridge()
         regularizer_strength: 0.1
+        solver: BFGS
         solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
-        solver_name: BFGS
 
         >>> # Saving and loading a custom inverse link function
         >>> model = nmo.glm.GLM(
@@ -1076,15 +1076,15 @@ class GLM(BaseRegressor[GLMUserParams, GLMParams]):
         ...     "inverse_link_function": lambda x: x**2,
         ... }
         >>> loaded_model = nmo.load_model("model_params.npz", mapping_dict=mapping_dict)
-        >>> # Now the loaded model will have the updated solver_name and solver_kwargs
+        >>> # Now the loaded model will have the updated solver and solver_kwargs
         >>> for key, value in loaded_model.get_params().items():
         ...     print(f"{key}: {value}")
         inverse_link_function: <function <lambda> at ...>
         observation_model: PoissonObservations()
         regularizer: UnRegularized()
         regularizer_strength: None
+        solver: GradientDescent
         solver_kwargs: {}
-        solver_name: GradientDescent
         """
 
         # initialize saving dictionary
@@ -1126,7 +1126,7 @@ class PopulationGLM(GLM):
     :class:`nemos.solvers._svrg.SVRG` or its proximal variant
     (:class:`nemos.solvers._svrg.ProxSVRG`) solver,
     which take advantage of batched computation. You can change the solver by passing
-    ``"SVRG"`` or ``"ProxSVRG"`` as ``solver_name`` at model initialization.
+    ``"SVRG"`` or ``"ProxSVRG"`` as ``solver`` at model initialization.
 
     The performance of the SVRG solver depends critically on the choice of ``batch_size`` and ``stepsize``
     hyperparameters. These parameters control the size of the mini-batches used for gradient computations
@@ -1165,7 +1165,7 @@ class PopulationGLM(GLM):
     regularizer_strength :
         Float that is default None. Sets the regularizer strength. If a user does not pass a value, and it is needed for
         regularization, a warning will be raised and the strength will default to 1.0.
-    solver_name :
+    solver :
         Solver to use for model optimization. Defines the optimization scheme and related parameters.
         The solver must be an appropriate match for the chosen regularizer.
         Default is ``None``. If no solver specified, one will be chosen based on the regularizer.
@@ -1220,7 +1220,7 @@ class PopulationGLM(GLM):
         observation_model=PoissonObservations(),
         inverse_link_function=exp,
         regularizer=UnRegularized(),
-        solver_name='GradientDescent'
+        solver='GradientDescent'
     )
     >>> # Check the fitted coefficients
     >>> print(model.coef_.shape)
@@ -1264,7 +1264,7 @@ class PopulationGLM(GLM):
         inverse_link_function: Optional[Callable] = None,
         regularizer: Union[str, Regularizer] = "UnRegularized",
         regularizer_strength: Optional[float] = None,
-        solver_name: str = None,
+        solver: str = None,
         solver_kwargs: dict = None,
         feature_mask: Optional[jnp.ndarray] = None,
         **kwargs,
@@ -1274,7 +1274,7 @@ class PopulationGLM(GLM):
             inverse_link_function=inverse_link_function,
             regularizer_strength=regularizer_strength,
             regularizer=regularizer,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs=solver_kwargs,
             **kwargs,
         )

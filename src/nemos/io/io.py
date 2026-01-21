@@ -65,7 +65,7 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     ...     regularizer="Ridge",
     ...     regularizer_strength=0.1,
     ...     observation_model="Gamma",
-    ...     solver_name="BFGS",
+    ...     solver="BFGS",
     ...     solver_kwargs=solver_args,
     ... )
     >>> for key, value in model.get_params().items():
@@ -74,8 +74,8 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     observation_model: GammaObservations()
     regularizer: Ridge()
     regularizer_strength: 0.1
+    solver: BFGS
     solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
-    solver_name: BFGS
     >>> # Save the model parameters to a file
     >>> model.save_params("model_params.npz")
     >>> # Load the model from the saved file
@@ -87,8 +87,8 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     observation_model: GammaObservations()
     regularizer: Ridge()
     regularizer_strength: 0.1
+    solver: BFGS
     solver_kwargs: {'stepsize': 0.1, 'maxiter': 1000, 'tol': 1e-06}
-    solver_name: BFGS
 
     >>> # Loading a custom inverse link function
     >>> model = nmo.glm.GLM(inverse_link_function=lambda x: x**2)
@@ -98,15 +98,15 @@ def load_model(filename: Union[str, Path], mapping_dict: dict = None):
     ...     "inverse_link_function": lambda x: x**2,
     ... }
     >>> loaded_model = nmo.load_model("model_params.npz", mapping_dict=mapping_dict)
-    >>> # Now the loaded model will have the updated solver_name and solver_kwargs
+    >>> # Now the loaded model will have the updated solver and solver_kwargs
     >>> for key, value in loaded_model.get_params().items():
     ...     print(f"{key}: {value}")
     inverse_link_function: <function <lambda> at ...>
     observation_model: PoissonObservations()
     regularizer: UnRegularized()
     regularizer_strength: None
+    solver: GradientDescent
     solver_kwargs: {}
-    solver_name: GradientDescent
     """
     # load the model from a .npz file
     filename = Path(filename)
