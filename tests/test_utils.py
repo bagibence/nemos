@@ -574,17 +574,23 @@ class ComplexParam(Base):
         (Example(a=0, b=False, c=None), None, [], "Example(a=0, b=False, d=1)"),
         # Falsey values excluded2
         (Example(a=0, b=[], c={}), None, [], "Example(a=0, d=1)"),
-        # function without the __name__
-        (
-            nmo.glm.GLM(inverse_link_function=deepcopy(jax.numpy.exp)),
-            None,
-            [],
-            "GLM(observation_model=PoissonObservations(), inverse_link_function=<PjitFunction>, regularizer=UnRegularized(), solver_name='GradientDescent')",
-        ),
     ],
 )
 def test_format_repr(obj, exclude_keys, use_name_keys, expected):
     assert utils.format_repr(obj, exclude_keys, use_name_keys) == expected
+
+
+def test_format_repr_glm_solver_backend():
+    """Ensure GLM repr reflects the active solver backend."""
+    solver_repr = repr(nmo.solvers.get_solver("GradientDescent"))
+    obj = nmo.glm.GLM(inverse_link_function=deepcopy(jax.numpy.exp))
+    expected = (
+        "GLM(observation_model=PoissonObservations(), "
+        "inverse_link_function=<PjitFunction>, "
+        "regularizer=UnRegularized(), "
+        f"solver={solver_repr})"
+    )
+    assert utils.format_repr(obj, None, []) == expected
 
 
 def test_repr_multiline():
@@ -637,7 +643,7 @@ def test_inspect_npz(tmp_path, model_class, monkeypatch, capsys):
     model = model_class(
         regularizer="Ridge",
         regularizer_strength=0.1,
-        solver_name="BFGS",
+        solver="BFGS",
     )
     model.save_params(file_path)
 
@@ -665,13 +671,23 @@ def test_inspect_npz(tmp_path, model_class, monkeypatch, capsys):
     if hasattr(model_class, "feature_mask") or model_class == nmo.glm.PopulationGLM:
         lines.append("feature_mask           : None")
 
+    solver_spec = nmo.solvers.get_solver("BFGS")
+    solver_repr = str(
+        {
+            "nemos_solver_spec": np.array(True),
+            "algo_name": solver_spec.algo_name,
+            "backend": solver_spec.backend,
+            "implementation": utils._get_name(solver_spec.implementation),
+        }
+    )
+
     lines += [
         "inverse_link_function  : jax.numpy.exp",
         "observation_model      : {'class': 'nemos.observation_models.PoissonObservations'}",
         "regularizer            : {'class': 'nemos.regularizer.Ridge'}",
         "regularizer_strength   : 0.1",
+        f"solver                 : {solver_repr}",
         "solver_kwargs          : None",
-        "solver_name            : BFGS",
         "",
         "Model fit parameters",
         "--------------------",

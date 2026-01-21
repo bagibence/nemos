@@ -37,7 +37,7 @@ GLM_COMMON_PARAMS_NAMES = {
     "regularizer",
     "regularizer_strength",
     "solver_kwargs",
-    "solver_name",
+    "solver",
 }
 OBSERVATION_MODEL_EXTRA_PARAMS_NAMES = {
     "NegativeBinomialObservations": {"observation_model__scale"},
@@ -886,7 +886,7 @@ class TestGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "GradientDescent",
             "BFGS",
@@ -928,7 +928,7 @@ class TestGLM:
         self,
         regularizer,
         obs_model,
-        solver_name,
+        solver,
         tmp_path,
         glm_class_type,
         fit_state_attrs,
@@ -942,15 +942,15 @@ class TestGLM:
             regularizer == "Lasso"
             or regularizer == "GroupLasso"
             or regularizer == "ElasticNet"
-            and solver_name not in ["ProximalGradient", "ProxSVRG"]
+            and solver not in ["ProximalGradient", "ProxSVRG"]
         ):
             pytest.skip(
-                f"Skipping {solver_name} for Lasso type regularizer; not an approximate solver."
+                f"Skipping {solver} for Lasso type regularizer; not an approximate solver."
             )
 
         kwargs = dict(
             observation_model=obs_model,
-            solver_name=solver_name,
+            solver=solver,
             regularizer=regularizer,
             regularizer_strength=2.0,
             solver_kwargs={"tol": 10**-6},
@@ -1010,7 +1010,7 @@ class TestGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "ProxSVRG",
         ],
@@ -1111,7 +1111,7 @@ class TestGLM:
         self,
         regularizer,
         obs_model,
-        solver_name,
+        solver,
         mapping_dict,
         tmp_path,
         glm_class_type,
@@ -1127,15 +1127,15 @@ class TestGLM:
         if (
             regularizer == "Lasso"
             or regularizer == "GroupLasso"
-            and solver_name not in ["ProximalGradient", "SVRG", "ProxSVRG"]
+            and solver not in ["ProximalGradient", "SVRG", "ProxSVRG"]
         ):
             pytest.skip(
-                f"Skipping {solver_name} for Lasso type regularizer; not an approximate solver."
+                f"Skipping {solver} for Lasso type regularizer; not an approximate solver."
             )
 
         model = model_class(
             observation_model=obs_model,
-            solver_name=solver_name,
+            solver=solver,
             regularizer=regularizer,
             regularizer_strength=2.0,
         )
@@ -1200,7 +1200,7 @@ class TestGLM:
                         assert _get_name(mapping_reg) == _get_name(
                             load_val
                         ), f"{key} regularizer mismatch: {mapping_dict[key]} != {load_val}"
-                    elif key == "solver_name":
+                    elif key == "solver":
                         assert (
                             mapping_dict[key] == load_val
                         ), f"{key} solver name mismatch: {mapping_dict[key]} != {load_val}"
@@ -1620,36 +1620,31 @@ class TestGLMObservationModel:
         """
         Fixture for test_repr_out
         """
+        solver_repr = {
+            "GradientDescent": repr(nmo.solvers.get_solver("GradientDescent")),
+            "LBFGS": repr(nmo.solvers.get_solver("LBFGS")),
+        }
+        glm_cls = "PopulationGLM" if "population" in glm_type else "GLM"
+
+        def build_repr(obs_repr: str, inv_link: str, algo_name: str) -> str:
+            return (
+                f"{glm_cls}(\n"
+                f"    observation_model={obs_repr},\n"
+                f"    inverse_link_function={inv_link},\n"
+                f"    regularizer=UnRegularized(),\n"
+                f"    solver={solver_repr[algo_name]}\n)"
+            )
+
         if "poisson" in model_instantiation:
-            if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-            else:
-                return "GLM(\n    observation_model=PoissonObservations(),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-
+            return build_repr("PoissonObservations()", "exp", "GradientDescent")
         elif "gamma" in model_instantiation:
-            if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-            else:
-                return "GLM(\n    observation_model=GammaObservations(),\n    inverse_link_function=one_over_x,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-
+            return build_repr("GammaObservations()", "one_over_x", "GradientDescent")
         elif "bernoulli" in model_instantiation:
-            if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-            else:
-                return "GLM(\n    observation_model=BernoulliObservations(),\n    inverse_link_function=logistic,\n    regularizer=UnRegularized(),\n    solver_name='GradientDescent'\n)"
-
+            return build_repr("BernoulliObservations()", "logistic", "GradientDescent")
         elif "negativeBinomial" in model_instantiation:
-            if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
-            else:
-                return "GLM(\n    observation_model=NegativeBinomialObservations(scale=1.0),\n    inverse_link_function=exp,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
-
+            return build_repr("NegativeBinomialObservations(scale=1.0)", "exp", "LBFGS")
         elif "gaussian" in model_instantiation:
-            if "population" in glm_type:
-                return "PopulationGLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
-            else:
-                return "GLM(\n    observation_model=GaussianObservations(),\n    inverse_link_function=identity,\n    regularizer=UnRegularized(),\n    solver_name='LBFGS'\n)"
-
+            return build_repr("GaussianObservations()", "identity", "LBFGS")
         else:
             raise ValueError("Unknown model instantiation")
 
@@ -1842,11 +1837,11 @@ class TestGLMObservationModel:
 
     @pytest.mark.parametrize("nan_inputs", [True, False])
     @pytest.mark.parametrize(
-        "solver_name", ["ProximalGradient", "GradientDescent", "LBFGS", "BFGS"]
+        "solver", ["ProximalGradient", "GradientDescent", "LBFGS", "BFGS"]
     )
     @pytest.mark.solver_related
     def test_update_params_are_finite(
-        self, nan_inputs, solver_name, request, glm_type, model_instantiation
+        self, nan_inputs, solver, request, glm_type, model_instantiation
     ):
         """
         Fitting a GLM to data containing NaNs with the jaxopt.LBFGS solver worked when using GLM.fit,
@@ -1858,7 +1853,7 @@ class TestGLMObservationModel:
         X, y, model, true_params, firing_rate = request.getfixturevalue(
             glm_type + model_instantiation
         )
-        model.solver_name = solver_name
+        model.solver = solver
 
         if nan_inputs:
             X[: X.shape[0] // 2, :] = np.nan
@@ -1993,18 +1988,20 @@ class TestGLMObservationModel:
         X, y, model, true_params, firing_rate = request.getfixturevalue(
             glm_type + model_instantiation
         )
-        param_grid = {"solver_name": ["BFGS", "GradientDescent"]}
+        param_grid = {
+            "solver": ["BFGS", "GradientDescent", nmo.solvers.OptimistixOptaxLBFGS]
+        }
         model.solver_kwargs.update(dict(maxiter=2))
         cls = GridSearchCV(model, param_grid).fit(X, y)
         # check that the repr works after cloning
         repr(cls)
 
-    @pytest.mark.parametrize("solver_name", ["LBFGS"])
+    @pytest.mark.parametrize("solver", ["LBFGS"])
     @pytest.mark.solver_related
     @pytest.mark.requires_x64
     @pytest.mark.filterwarnings("ignore:Setting penalty=None will ignore:UserWarning")
     def test_glm_fit_matches_sklearn(
-        self, solver_name, request, glm_type, model_instantiation, sklearn_model
+        self, solver, request, glm_type, model_instantiation, sklearn_model
     ):
         """Test that different solvers converge to the same solution."""
         if sklearn_model is None:
@@ -2016,7 +2013,7 @@ class TestGLMObservationModel:
         model = type(model_obs)(
             regularizer=nmo.regularizer.UnRegularized(),
             observation_model=model_obs.observation_model,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={"tol": 10**-10},
         )
 
@@ -2106,7 +2103,7 @@ class TestGLMObservationModel:
         if isinstance(strength, str):
             strength = request.getfixturevalue(strength)
         model.set_params(regularizer=reg, regularizer_strength=strength)
-        model.solver_name = model.regularizer.default_solver
+        model.solver = model.regularizer.default_solver
         model.solver_kwargs.update({"maxiter": 10**5})
         model.fit(X, y)
         num = model._estimate_resid_degrees_of_freedom(X, n_samples=n_samples)
@@ -2122,7 +2119,7 @@ class TestGLMObservationModel:
         "regularizer", ["UnRegularized", "Ridge", "Lasso", "GroupLasso", "ElasticNet"]
     )
     @pytest.mark.parametrize(
-        "solver_name, has_defaults",
+        "solver, has_defaults",
         [
             ("GradientDescent", False),
             ("LBFGS", False),
@@ -2141,7 +2138,7 @@ class TestGLMObservationModel:
         batch_size,
         stepsize,
         regularizer,
-        solver_name,
+        solver,
         inv_link,
         has_defaults,
         link_has_defaults,
@@ -2162,8 +2159,8 @@ class TestGLMObservationModel:
         # use glm static methods to check if the solver is batchable
         # if not pop the batch_size kwarg
         try:
-            slv_class = solvers.solver_registry[solver_name]
-            nmo.glm.GLM._check_solver_kwargs(slv_class, solver_kwargs)
+            slv_class = nmo.solvers.get_solver(solver)
+            nmo.glm.GLM._check_solver_kwargs(slv_class.implementation, solver_kwargs)
         except NameError:
             solver_kwargs.pop("batch_size")
 
@@ -2171,7 +2168,7 @@ class TestGLMObservationModel:
         try:
             model = nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 inverse_link_function=inv_link,
                 observation_model=obs,
                 solver_kwargs=solver_kwargs,
@@ -2179,7 +2176,7 @@ class TestGLMObservationModel:
             )
         except ValueError as e:
             if not str(e).startswith(
-                rf"The solver: {solver_name} is not allowed for {regularizer} regularization"
+                rf"The solver: {solver} is not allowed for {regularizer} regularization"
             ):
                 raise e
             return
@@ -2477,7 +2474,7 @@ class TestPopulationGLMObservationModel:
         assert mn_n.ndim == 1
 
     @pytest.mark.parametrize(
-        "regularizer, regularizer_strength, solver_name, solver_kwargs",
+        "regularizer, regularizer_strength, solver, solver_kwargs",
         [
             (
                 nmo.regularizer.UnRegularized(),
@@ -2539,7 +2536,7 @@ class TestPopulationGLMObservationModel:
         self,
         regularizer,
         regularizer_strength,
-        solver_name,
+        solver,
         solver_kwargs,
         mask,
         request,
@@ -2577,7 +2574,7 @@ class TestPopulationGLMObservationModel:
             feature_mask=mask,
             regularizer=regularizer,
             regularizer_strength=regularizer_strength,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs=solver_kwargs,
         )
         model = nmo.glm.PopulationGLM(**kwargs)
@@ -2634,7 +2631,7 @@ class TestPoissonGLM:
 
     @pytest.mark.parametrize("reg_setup", ["", "_pytree"])
     @pytest.mark.parametrize(
-        "solver_name, reg",
+        "solver, reg",
         [
             ("SVRG", "Ridge"),
             ("SVRG", "UnRegularized"),
@@ -2654,7 +2651,7 @@ class TestPoissonGLM:
     @pytest.mark.solver_related
     def test_glm_optimal_config_set_initial_state(
         self,
-        solver_name,
+        solver,
         batch_size,
         stepsize,
         reg,
@@ -2678,7 +2675,7 @@ class TestPoissonGLM:
             else:
                 reg = nmo.regularizer.GroupLasso(mask=jnp.ones((1, X.shape[1])))
         model = glm_class(
-            solver_name=solver_name,
+            solver=solver,
             inverse_link_function=jax.nn.softplus,
             solver_kwargs=dict(batch_size=batch_size, stepsize=stepsize),
             observation_model=obs,
@@ -2686,7 +2683,7 @@ class TestPoissonGLM:
             regularizer_strength=None if reg == "UnRegularized" else 1.0,
         )
         opt_state = model._initialize_solver_and_state(X, y, true_params)
-        solver = model._solver
+        solver = model._solver_instance
 
         if stepsize is not None:
             assert opt_state.stepsize == stepsize
@@ -2712,7 +2709,7 @@ class TestPoissonGLM:
         ],
     )
     @pytest.mark.parametrize(
-        "solver_name, expected_type_solver",
+        "solver, expected_type_solver",
         [
             ("GradientDescent", type(None)),
             ("ProximalGradient", type(None)),
@@ -2728,7 +2725,7 @@ class TestPoissonGLM:
     def test_optimal_config_outputs(
         self,
         regularizer,
-        solver_name,
+        solver,
         inv_link_func,
         expected_type_convexity,
         expected_type_link,
@@ -2745,13 +2742,13 @@ class TestPoissonGLM:
             model = glm_class(
                 inverse_link_function=inv_link_func,
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 observation_model=obs,
                 regularizer_strength=None if regularizer == "UnRegularized" else 1.0,
             )
         except ValueError as e:
             if not str(e).startswith(
-                rf"The solver: {solver_name} is not allowed for {regularizer} regularization"
+                rf"The solver: {solver} is not allowed for {regularizer} regularization"
             ):
                 raise e
             return
@@ -2770,7 +2767,7 @@ class TestPoissonGLM:
     @pytest.mark.parametrize("regr_setup", ["", "_pytree"])
     @pytest.mark.parametrize("key", [jax.random.key(0), jax.random.key(19)])
     @pytest.mark.parametrize(
-        "regularizer_class, solver_name",
+        "regularizer_class, solver",
         [
             (nmo.regularizer.UnRegularized, "SVRG"),
             (nmo.regularizer.Ridge, "SVRG"),
@@ -2789,7 +2786,7 @@ class TestPoissonGLM:
         regr_setup,
         key,
         regularizer_class,
-        solver_name,
+        solver,
         glm_class_type,
     ):
         """
@@ -2822,7 +2819,7 @@ class TestPoissonGLM:
             observation_model=model.observation_model,
             regularizer=reg,
             regularizer_strength=strength,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={
                 "batch_size": batch_size,
                 "stepsize": stepsize,
@@ -2834,7 +2831,7 @@ class TestPoissonGLM:
         glm2 = type(model)(
             observation_model=model.observation_model,
             regularizer=reg,
-            solver_name=solver_name,
+            solver=solver,
             solver_kwargs={
                 "batch_size": batch_size,
                 "stepsize": stepsize,

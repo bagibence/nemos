@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from hmmlearn import hmm
 
+import nemos as nmo
 from nemos.fetch import fetch_data
 from nemos.glm import GLM
 from nemos.glm.params import GLMParams
@@ -25,7 +26,6 @@ from nemos.glm_hmm.expectation_maximization import (
 )
 from nemos.observation_models import BernoulliObservations, PoissonObservations
 from nemos.regularizer import UnRegularized
-from nemos.solvers import solver_registry
 
 
 def _add_prior_logspace(log_val: jnp.ndarray, offset: jnp.ndarray):
@@ -206,7 +206,7 @@ def prepare_solver_for_m_step_single_neuron(
     xis
         Joint posterior probabilities for consecutive states.
     """
-    (coef, intercept) = glm_params
+    coef, intercept = glm_params
     likelihood = jax.vmap(
         lambda x, z: obs.likelihood(x, z, aggregate_sample_scores=lambda w: w),
         in_axes=(None, 1),
@@ -262,7 +262,7 @@ def prepare_partial_hmm_nll_single_neuron(obs):
             negative_log_likelihood_func=negative_log_likelihood,
         )
 
-    lbfgs_class = solver_registry["LBFGS"]
+    lbfgs_class = nmo.solvers.get_solver("LBFGS").implementation
     solver = lbfgs_class(
         partial_hmm_negative_log_likelihood,
         UnRegularized(),
@@ -304,7 +304,7 @@ def prepare_gammas_and_xis_for_m_step_single_neuron(
     xis
         Joint posterior probabilities for consecutive states.
     """
-    (coef, intercept) = glm_params
+    coef, intercept = glm_params
     likelihood = jax.vmap(
         lambda x, z: obs.log_likelihood(x, z, aggregate_sample_scores=lambda w: w),
         in_axes=(None, 1),
@@ -927,7 +927,7 @@ class TestMStep:
         )  # note that the lagrange mult makes the gradient all the same for each prob.
         # 2) Check that the gradient of the loss is zero
         grad_objective = jax.grad(lagrange_mult_loss)
-        (grad_at_transition, grad_at_lagr) = grad_objective(
+        grad_at_transition, grad_at_lagr = grad_objective(
             (new_transition_prob, lagrange_multiplier),
             xis,
             expected_log_likelihood_wrt_transitions,
@@ -944,7 +944,7 @@ class TestMStep:
             new_initial_prob, sum_gammas
         ).mean()  # note that the lagrange mult makes the gradient all the same for each prob.
         grad_objective = jax.grad(lagrange_mult_loss)
-        (grad_at_init, grad_at_lagr) = grad_objective(
+        grad_at_init, grad_at_lagr = grad_objective(
             (new_initial_prob, lagrange_multiplier),
             sum_gammas,
             expected_log_likelihood_wrt_initial_prob,
@@ -1005,9 +1005,7 @@ class TestMStep:
             is_new_session=new_sess.astype(bool),
             m_step_fn_glm_params=solver.run,
         )
-        glm = GLM(
-            observation_model=obs, solver_name="LBFGS", solver_kwargs={"tol": 10**-8}
-        )
+        glm = GLM(observation_model=obs, solver="LBFGS", solver_kwargs={"tol": 10**-8})
         glm.fit(X, y)
         # test that the glm coeff and intercept matches with the m-step output
         np.testing.assert_array_almost_equal(
@@ -1080,7 +1078,7 @@ class TestMStep:
         )  # note that the lagrange mult makes the gradient all the same for each prob.
         # 2) Check that the gradient of the loss is zero
         grad_objective = jax.grad(lagrange_mult_loss)
-        (grad_at_transition, grad_at_lagr) = grad_objective(
+        grad_at_transition, grad_at_lagr = grad_objective(
             (new_transition_prob, lagrange_multiplier),
             np.exp(log_xis),
             expected_log_likelihood_wrt_transitions,
@@ -1099,7 +1097,7 @@ class TestMStep:
         ).mean()  # note that the lagrange mult makes the gradient all the same for each prob.
         # 2) Check that the gradient of the loss is zero
         grad_objective = jax.grad(lagrange_mult_loss)
-        (grad_at_init, grad_at_lagr) = grad_objective(
+        grad_at_init, grad_at_lagr = grad_objective(
             (new_initial_prob, lagrange_multiplier),
             sum_gammas,
             expected_log_likelihood_wrt_initial_prob,
@@ -1588,10 +1586,8 @@ class TestEMAlgorithm:
             )
 
         # use the BaseRegressor initialize_solver (this will be avaialble also in the GLMHHM class)
-        solver_name = "ProximalGradient" if "Lasso" in regularization else "LBFGS"
-        glm = GLM(
-            observation_model=obs, regularizer=regularization, solver_name=solver_name
-        )
+        solver = "ProximalGradient" if "Lasso" in regularization else "LBFGS"
+        glm = GLM(observation_model=obs, regularizer=regularization, solver=solver)
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -1703,7 +1699,7 @@ class TestEMAlgorithm:
             )
 
         # use the BaseRegressor initialize_solver (this will be avaialble also in the GLMHHM class)
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood,
             GLMParams(intercept, coef),
@@ -1855,7 +1851,7 @@ def test_e_and_m_step_for_population(generate_data_multi_state_population):
 
     alphas_transition = np.random.uniform(1, 3, size=transition_prob.shape)
     alphas_init = np.random.uniform(1, 3, size=initial_prob.shape)
-    lbfgs_class = solver_registry["LBFGS"]
+    lbfgs_class = nmo.solvers.get_solver("LBFGS").implementation
     solver = lbfgs_class(
         partial_hmm_negative_log_likelihood,
         UnRegularized(),
@@ -2051,7 +2047,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2116,7 +2112,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2174,7 +2170,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2238,7 +2234,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2323,7 +2319,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2396,7 +2392,7 @@ class TestConvergence:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2535,7 +2531,7 @@ class TestCompilation:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name=solver_name)
+        glm = GLM(observation_model=obs, solver=solver_name)
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2641,7 +2637,7 @@ class TestCompilation:
                 negative_log_likelihood_func=negative_log_likelihood_func,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef, intercept)
         )
@@ -2847,7 +2843,7 @@ class TestPytreeSupport:
                 negative_log_likelihood_func=vmap_nll,
             )
 
-        glm = GLM(observation_model=obs, solver_name="LBFGS")
+        glm = GLM(observation_model=obs, solver="LBFGS")
         glm._instantiate_solver(
             partial_hmm_negative_log_likelihood, GLMParams(coef_tree, intercept)
         )

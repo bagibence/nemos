@@ -49,7 +49,7 @@ HARD_CODED_GET_PARAMS_KEYS = {
         "regularizer",
         "regularizer_strength",
         "solver_kwargs",
-        "solver_name",
+        "solver",
     },
     "PopulationGLM": {
         "inverse_link_function",
@@ -57,7 +57,7 @@ HARD_CODED_GET_PARAMS_KEYS = {
         "regularizer",
         "regularizer_strength",
         "solver_kwargs",
-        "solver_name",
+        "solver",
         "feature_mask",
     },
 }
@@ -202,7 +202,7 @@ class TestModelCommons:
     # Test model.__init__
     #######################
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             # test solver at initialization, where test_regularizers.py tests solvers with set_params
             (None, does_not_raise()),
@@ -214,12 +214,12 @@ class TestModelCommons:
             ("ProxSVRG", does_not_raise()),
             (
                 1,
-                pytest.raises(TypeError, match="solver_name must be a string"),
+                pytest.raises(TypeError, match="Type of solver has to be"),
             ),
         ],
     )
     def test_init_solver_type(
-        self, solver_name, expectation, instantiate_base_regressor_subclass
+        self, solver, expectation, instantiate_base_regressor_subclass
     ):
         """
         Test that an error is raised if a non-compatible solver is passed.
@@ -227,7 +227,7 @@ class TestModelCommons:
         fixture = instantiate_base_regressor_subclass
         model = fixture.model.__class__
         pars = DEFAULTS[model.__name__].copy()
-        pars.update(dict(solver_name=solver_name))
+        pars.update(dict(solver=solver))
         with expectation:
             model(**pars)
 
@@ -291,7 +291,7 @@ class TestModelCommons:
         # passing params
         model = model_cls(
             **DEFAULTS[model_cls.__name__],
-            solver_name="LBFGS",
+            solver="LBFGS",
             regularizer="UnRegularized",
         )
         expected_values = {
@@ -315,7 +315,7 @@ class TestModelCommons:
         assert all(np.all(actual_values[k] == v) for k, v in expected_values.items())
 
         # changing solver
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
         expected_values = {
             par_name: getattr(model, par_name) for par_name in expected_keys
         }
@@ -357,7 +357,7 @@ class TestModelCommons:
 
         model.set_params(
             regularizer=nmo.regularizer.GroupLasso(mask=mask),
-            solver_name="ProximalGradient",
+            solver="ProximalGradient",
             regularizer_strength=1.0,
         )
         params = model.initialize_params(X, y)

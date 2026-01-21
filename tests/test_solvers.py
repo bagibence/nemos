@@ -130,25 +130,25 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
     solver_name = solver_class.__name__
 
     # only pass mask if it's not None
-    kwargs = {"solver_name": solver_name}
+    kwargs = {"solver": solver_name}
     if mask is not None:
         kwargs["mask"] = mask
 
     glm = nmo.glm.GLM(
         regularizer=regularizer_name,
-        solver_name=solver_name,
+        solver=solver_name,
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
     )
     glm._instantiate_solver(glm._compute_loss, np.zeros(1))
 
-    # currently glm._solver is a Wrapped(Prox)SVRG
-    solver = glm._solver._solver
-    assert glm.solver_name == solver_name
+    # currently glm._solver_instance is a Wrapped(Prox)SVRG
+    solver = glm._solver_instance._solver
+    assert glm.algo_name == solver_name
     assert isinstance(solver, solver_class)
 
 
 @pytest.mark.parametrize(
-    "regularizer_name, solver_name, mask",
+    "regularizer_name, solver, mask",
     [
         ("Lasso", "ProxSVRG", None),
         ("GroupLasso", "ProxSVRG", np.array([0, 1, 0, 1]).reshape(1, -1).astype(float)),
@@ -157,7 +157,7 @@ def test_svrg_glm_instantiate_solver(regularizer_name, solver_class, mask):
     ],
 )
 @pytest.mark.parametrize("glm_class", [nmo.glm.GLM, nmo.glm.PopulationGLM])
-def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver_name, mask, glm_class):
+def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver, mask, glm_class):
     solver_kwargs = {
         "stepsize": np.abs(np.random.randn()),
         "maxiter": np.random.randint(1, 100),
@@ -170,15 +170,15 @@ def test_svrg_glm_passes_solver_kwargs(regularizer_name, solver_name, mask, glm_
 
     glm = glm_class(
         regularizer=regularizer_name,
-        solver_name=solver_name,
+        solver=solver,
         solver_kwargs=solver_kwargs,
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
         **kwargs,
     )
     glm._instantiate_solver(glm._compute_loss, np.zeros(1))
 
-    # currently glm._solver is a Wrapped(Prox)SVRG
-    solver = glm._solver._solver
+    # currently glm._solver_instance is a Wrapped(Prox)SVRG
+    solver = glm._solver_instance._solver
     assert solver.stepsize == solver_kwargs["stepsize"]
     assert solver.maxiter == solver_kwargs["maxiter"]
 
@@ -222,7 +222,7 @@ def test_svrg_glm_initialize_state(
 
     glm = glm_class(
         regularizer=reg,
-        solver_name=solver_class.__name__,
+        solver=solver_class.__name__,
         inverse_link_function=jax.nn.softplus,
         observation_model=nmo.observation_models.PoissonObservations(),
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
@@ -280,7 +280,7 @@ def test_svrg_glm_update(
 
     glm = glm_class(
         regularizer=reg,
-        solver_name=solver_class.__name__,
+        solver=solver_class.__name__,
         inverse_link_function=jax.nn.softplus,
         observation_model=nmo.observation_models.PoissonObservations(),
         regularizer_strength=None if regularizer_name == "UnRegularized" else 1,
@@ -359,10 +359,10 @@ def test_maxiter_is_respected(
     # set the tolerance such that the solvers never hit their convergence criterion
     # and run until maxiter is reached
     backend = os.getenv("NEMOS_SOLVER_BACKEND")
-    solver_class_name = str(nmo.solvers._solver_registry.solver_registry[solver_name])
+    solver_class_name = str(nmo.solvers.get_solver(solver_name).implementation)
 
     use_jaxopt_tol = False
-    if backend is not None and backend == "jaxopt":
+    if backend == "jaxopt":
         use_jaxopt_tol = True
 
     if "jaxopt" in solver_class_name.lower():
@@ -390,7 +390,7 @@ def test_maxiter_is_respected(
 
     glm = glm_class(
         regularizer=reg,
-        solver_name=solver_name,
+        solver=solver_name,
         inverse_link_function=jax.nn.softplus,
         observation_model=nmo.observation_models.PoissonObservations(),
         solver_kwargs=solver_kwargs,
@@ -403,7 +403,7 @@ def test_maxiter_is_respected(
 
     glm.fit(X, y)
 
-    solver = glm._solver
+    solver = glm._solver_instance
     assert solver.maxiter == maxiter
 
     assert solver.get_optim_info(glm.solver_state_).num_steps == maxiter
@@ -438,7 +438,7 @@ def test_svrg_glm_update_needs_full_grad_at_reference_point(
     kwargs = dict(
         regularizer=reg,
         inverse_link_function=jax.nn.softplus,
-        solver_name=solver_class.__name__,
+        solver=solver_class.__name__,
         observation_model=nmo.observation_models.PoissonObservations(),
         regularizer_strength=None if regularizer_name == "UnRegularized" else 0.1,
     )
@@ -656,14 +656,16 @@ def test_svrg_wrong_shapes(shapes, expected_context):
 
 def test_all_solvers_accept_tol_and_not_atol():
     """All solvers should accept tol and not accept atol."""
-    for solver_class in nmo.solvers._solver_registry.solver_registry.values():
+    for spec in nmo.solvers.list_available_solvers():
+        solver_class = spec.implementation
         assert "tol" in solver_class.get_accepted_arguments()
         assert "atol" not in solver_class.get_accepted_arguments()
 
 
 def test_all_solvers_accept_maxiter_and_not_max_steps():
     """All solvers should accept maxiter and not accept max_steps."""
-    for solver_class in nmo.solvers._solver_registry.solver_registry.values():
+    for spec in nmo.solvers.list_available_solvers():
+        solver_class = spec.implementation
         assert "maxiter" in solver_class.get_accepted_arguments()
         assert "max_steps" not in solver_class.get_accepted_arguments()
 
@@ -695,9 +697,9 @@ def test_all_solvers_use_aux_in_run(request, aux_gen_fn):
 
     param_init = jax.tree_util.tree_map(np.zeros_like, true_params)
 
-    for solver_name in nmo.solvers.list_available_solvers():
+    for solver_spec in nmo.solvers.list_available_solvers():
         run_loss = TestAux(loss)
-        solver_class = nmo.solvers.solver_registry[solver_name]
+        solver_class = solver_spec.implementation
 
         # test solver.run
         solver = solver_class(
@@ -742,9 +744,9 @@ def test_all_solvers_use_aux_in_update(request, aux_gen_fn):
 
     param_init = jax.tree_util.tree_map(np.zeros_like, true_params)
 
-    for solver_name in nmo.solvers.list_available_solvers():
+    for solver_spec in nmo.solvers.list_available_solvers():
         update_loss = TestAux(loss)
-        solver_class = nmo.solvers.solver_registry[solver_name]
+        solver_class = solver_spec.implementation
         solver = solver_class(
             unregularized_loss=update_loss,
             regularizer=nmo.regularizer.UnRegularized(),
@@ -753,7 +755,7 @@ def test_all_solvers_use_aux_in_update(request, aux_gen_fn):
         )
         init_state = solver.init_state(param_init, X, y)
 
-        if "svrg" in solver_name.lower():
+        if "svrg" in solver_spec.algo_name.lower():
             full_grad, full_aux = jax.grad(update_loss, has_aux=True)(param_init, X, y)
             init_state = init_state._replace(
                 full_grad_at_reference_point=full_grad,
@@ -776,8 +778,8 @@ def test_all_solvers_work_without_aux(request):
     jax.config.update("jax_enable_x64", True)
     X, y, _, true_params, loss = request.getfixturevalue("linear_regression")
 
-    for solver_name in nmo.solvers.list_available_solvers():
-        solver_class = nmo.solvers.solver_registry[solver_name]
+    for solver_spec in nmo.solvers.list_available_solvers():
+        solver_class = solver_spec.implementation
 
         param_init = jax.tree_util.tree_map(np.zeros_like, true_params)
         solver = solver_class(

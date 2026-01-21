@@ -19,6 +19,33 @@ from nemos.glm.params import GLMParams
 pytestmark = pytest.mark.solver_related
 
 
+@pytest.fixture(scope="module", autouse=True)
+def register_deregister_agradientdescent():
+    """Fixture for registering and deregisterin AGradientDescent."""
+    name = "AGradientDescent"
+
+    # register a random solver under this name
+    nmo.solvers._solver_registry.register(
+        name,
+        nmo.solvers._solver_registry.get_solver("LBFGS").implementation,
+        backend="custom",
+    )
+
+    yield
+
+    from nemos.solvers._solver_registry import _registry, _defaults
+
+    if name in _registry and "custom" in _registry[name]:
+        # remove custom dummy implementation
+        _registry[name].pop("custom", None)
+        # if there are no other implementations, remove the algo name
+        if not _registry[name]:
+            _registry.pop(name, None)
+    # if the default implementation was the custom dummy one, remove it
+    if _defaults.get(name) == "custom":
+        _defaults.pop(name, None)
+
+
 @pytest.mark.parametrize(
     "reg_str, reg_type",
     [
@@ -171,6 +198,51 @@ def test_item_assignment_allowed_solvers(regularizer):
 
 
 @pytest.mark.parametrize(
+    "regularizer_class",
+    [
+        nmo.regularizer.UnRegularized,
+        nmo.regularizer.Ridge,
+        nmo.regularizer.Lasso,
+        nmo.regularizer.ElasticNet,
+        nmo.regularizer.GroupLasso,
+    ],
+)
+def test_allow_solver(regularizer_class):
+    """allow_solver should update the class-level tuple for all instances."""
+    new_solver = "MyCoolNewAlgorithm"
+    original_allowed = regularizer_class._allowed_solvers
+
+    reg1 = regularizer_class()
+    reg2 = regularizer_class()
+
+    # by default it's not allowed
+    assert new_solver not in reg1.allowed_solvers
+    assert new_solver not in reg2.allowed_solvers
+
+    try:
+        # register and allow the this solver
+        # using LBFGS just as a dummy that implements the solver interface
+        nmo.solvers.register(
+            new_solver, nmo.solvers.get_solver("LBFGS").implementation, default=True
+        )
+        regularizer_class.allow_solver(new_solver)
+
+        assert new_solver in reg1.allowed_solvers
+        assert new_solver in reg2.allowed_solvers
+        assert new_solver in regularizer_class().allowed_solvers
+
+        with does_not_raise():
+            reg1.check_solver(new_solver)
+            model = nmo.glm.GLM(regularizer=reg1, solver=new_solver)
+            assert model.solver.algo_name == new_solver
+    finally:
+        # reset to avoid leaking the extra solver into other tests
+        regularizer_class._allowed_solvers = original_allowed
+        nmo.solvers._solver_registry._registry.pop("MyCoolNewAlgorithm")
+        nmo.solvers._solver_registry._defaults.pop("MyCoolNewAlgorithm")
+
+
+@pytest.mark.parametrize(
     "regularizer, regularizer_strength",
     [
         ("Ridge", 2.0),
@@ -246,7 +318,7 @@ class TestUnRegularized:
     cls = nmo.regularizer.UnRegularized
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             ("GradientDescent", does_not_raise()),
             ("BFGS", does_not_raise()),
@@ -258,18 +330,18 @@ class TestUnRegularized:
                     match="The solver: AGradientDescent is not allowed for",
                 ),
             ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name, expectation):
+    def test_init_solver(self, solver, expectation):
         """Test UnRegularized acceptable solvers."""
         with expectation:
-            nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
+            nmo.glm.GLM(regularizer=self.cls(), solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             ("GradientDescent", does_not_raise()),
             ("BFGS", does_not_raise()),
@@ -277,21 +349,20 @@ class TestUnRegularized:
             (
                 "AGradientDescent",
                 pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
+                    ValueError, match="The solver: AGradientDescent is not allowed for"
                 ),
             ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name, expectation):
+    def test_set_solver_allowed(self, solver, expectation):
         """Test UnRegularized acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer)
         with expectation:
-            model.set_params(solver_name=solver_name)
+            model.set_params(solver=solver)
 
     def test_regularizer_strength_none(self):
         """Add test to assert that regularizer strength of UnRegularized model should be `None`"""
@@ -314,12 +385,10 @@ class TestUnRegularized:
 
         assert regularizer.get_params() == {}
 
-    @pytest.mark.parametrize(
-        "solver_name", ["GradientDescent", "BFGS", "SVRG", "ProxSVRG"]
-    )
+    @pytest.mark.parametrize("solver", ["GradientDescent", "BFGS", "SVRG", "ProxSVRG"])
     @pytest.mark.parametrize("solver_kwargs", [{"tol": 10**-10}, {"tols": 10**-10}])
-    def test_init_solver_kwargs(self, solver_name, solver_kwargs):
-        """Test Ridge acceptable kwargs."""
+    def test_init_solver_kwargs(self, solver, solver_kwargs):
+        """Test RidgeSolver acceptable kwargs."""
         regularizer = self.cls()
         raise_exception = "tols" in list(solver_kwargs.keys())
         if raise_exception:
@@ -328,13 +397,13 @@ class TestUnRegularized:
             ):
                 nmo.glm.GLM(
                     regularizer=regularizer,
-                    solver_name=solver_name,
+                    solver=solver,
                     solver_kwargs=solver_kwargs,
                 )
         else:
             nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
             )
 
@@ -352,33 +421,33 @@ class TestUnRegularized:
             nmo.utils.assert_is_callable(model._compute_loss, "loss")
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
     )
-    def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
+    def test_run_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         model._instantiate_solver(model._compute_loss, params)
         model.solver_run(params, X, y)
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
     )
-    def test_run_solver_tree(self, solver_name, poissonGLM_model_instantiation_pytree):
+    def test_run_solver_tree(self, solver, poissonGLM_model_instantiation_pytree):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation_pytree
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(
             jax.tree_util.tree_map(jnp.zeros_like, true_params.coef),
             true_params.intercept,
@@ -390,14 +459,17 @@ class TestUnRegularized:
             y,
         )
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize(
+        "solver",
+        ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
+    )
     @pytest.mark.requires_x64
-    def test_solver_output_match(self, poissonGLM_model_instantiation, solver_name):
+    def test_solver_output_match(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set model params
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
@@ -405,7 +477,7 @@ class TestUnRegularized:
 
         # update solver name
         model_bfgs = copy.deepcopy(model)
-        model_bfgs.solver_name = "BFGS"
+        model_bfgs.solver = "BFGS"
         model_bfgs._instantiate_solver(model_bfgs._compute_loss, init_params)
         params_gd = model.solver_run(init_params, X, y)[0]
         params_bfgs = model_bfgs.solver_run(init_params, X, y)[0]
@@ -418,13 +490,13 @@ class TestUnRegularized:
                 "Convex estimators should converge to the same numerical value."
             )
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
     @pytest.mark.requires_x64
-    def test_solver_match_sklearn(self, poissonGLM_model_instantiation, solver_name):
+    def test_solver_match_sklearn(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         model._instantiate_solver(model._compute_loss, init_params)
@@ -437,16 +509,14 @@ class TestUnRegularized:
         if (not match_weights) or (not match_intercepts):
             raise ValueError("UnRegularized GLM estimate does not match sklearn!")
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
     @pytest.mark.requires_x64
-    def test_solver_match_sklearn_gamma(
-        self, gammaGLM_model_instantiation, solver_name
-    ):
+    def test_solver_match_sklearn_gamma(self, gammaGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = gammaGLM_model_instantiation
         model.inverse_link_function = jnp.exp
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         model._instantiate_solver(model._compute_loss, init_params)
@@ -466,16 +536,17 @@ class TestUnRegularized:
             (lambda x: 1 / x, sm.families.links.InversePower()),
         ],
     )
-    @pytest.mark.parametrize("solver_name", ["LBFGS", "SVRG"])
+    # @pytest.mark.parametrize("solver", ["LBFGS", "GradientDescent", "SVRG"])
+    @pytest.mark.parametrize("solver", ["LBFGS", "SVRG"])
     @pytest.mark.requires_x64
     def test_solver_match_statsmodels_gamma(
-        self, inv_link_jax, link_sm, gammaGLM_model_instantiation, solver_name
+        self, inv_link_jax, link_sm, gammaGLM_model_instantiation, solver
     ):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = gammaGLM_model_instantiation
         model.inverse_link_function = inv_link_jax
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-13}
         init_params = model._model_specific_initialization(X, y)
         model._instantiate_solver(model._compute_loss, init_params)
@@ -501,14 +572,14 @@ class TestUnRegularized:
             (jnp.exp, sm.families.links.Log()),
         ],
     )
-    @pytest.mark.parametrize("solver_name", ["LBFGS", "SVRG", "ProximalGradient"])
+    @pytest.mark.parametrize("solver", ["LBFGS", "SVRG", "ProximalGradient"])
     @pytest.mark.requires_x64
     def test_solver_match_statsmodels_negative_binomial(
         self,
         inv_link_jax,
         link_sm,
         negativeBinomialGLM_model_instantiation,
-        solver_name,
+        solver,
     ):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = negativeBinomialGLM_model_instantiation
@@ -519,7 +590,7 @@ class TestUnRegularized:
         model.data_type = jnp.float64
         model.observation_model.inverse_link_function = inv_link_jax
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-13}
         init_params = model._model_specific_initialization(X, y)
         model._instantiate_solver(model._compute_loss, init_params)
@@ -544,7 +615,7 @@ class TestUnRegularized:
             )
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "GradientDescent",
             "BFGS",
@@ -555,10 +626,10 @@ class TestUnRegularized:
             "ProxSVRG",
         ],
     )
-    def test_solver_combination(self, solver_name, poissonGLM_model_instantiation):
+    def test_solver_combination(self, solver, poissonGLM_model_instantiation):
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls())
-        model.solver_name = solver_name
+        model.solver = solver
         model.fit(X, y)
 
 
@@ -566,7 +637,7 @@ class TestRidge:
     cls = nmo.regularizer.Ridge
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             ("GradientDescent", does_not_raise()),
             ("BFGS", does_not_raise()),
@@ -578,18 +649,18 @@ class TestRidge:
                     match="The solver: AGradientDescent is not allowed for",
                 ),
             ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name, expectation):
+    def test_init_solver(self, solver, expectation):
         """Test Ridge acceptable solvers."""
         with expectation:
-            nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
+            nmo.glm.GLM(regularizer=self.cls(), solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             ("GradientDescent", does_not_raise()),
             ("BFGS", does_not_raise()),
@@ -597,25 +668,24 @@ class TestRidge:
             (
                 "AGradientDescent",
                 pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
+                    ValueError, match="The solver: AGradientDescent is not allowed for"
                 ),
             ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
             ("SVRG", does_not_raise()),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name, expectation):
-        """Test Ridge acceptable solvers."""
+    def test_set_solver_allowed(self, solver, expectation):
+        """Test UnRegularized acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1.0)
         with expectation:
-            model.set_params(solver_name=solver_name)
+            model.set_params(solver=solver)
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "BFGS", "SVRG"])
+    @pytest.mark.parametrize("solver", ["GradientDescent", "BFGS", "SVRG"])
     @pytest.mark.parametrize("solver_kwargs", [{"tol": 10**-10}, {"tols": 10**-10}])
-    def test_init_solver_kwargs(self, solver_name, solver_kwargs):
+    def test_init_solver_kwargs(self, solver, solver_kwargs):
         """Test Ridge acceptable kwargs."""
         regularizer = self.cls()
         raise_exception = "tols" in list(solver_kwargs.keys())
@@ -625,14 +695,14 @@ class TestRidge:
             ):
                 nmo.glm.GLM(
                     regularizer=regularizer,
-                    solver_name=solver_name,
+                    solver=solver,
                     solver_kwargs=solver_kwargs,
                     regularizer_strength=1.0,
                 )
         else:
             nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
                 regularizer_strength=1.0,
             )
@@ -673,33 +743,33 @@ class TestRidge:
             nmo.utils.assert_is_callable(model._compute_loss, "loss")
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
     )
-    def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
+    def test_run_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner = model._instantiate_solver(model._compute_loss, params).solver_run
         runner(params, X, y)
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         ["GradientDescent", "BFGS", "ProximalGradient", "SVRG", "ProxSVRG"],
     )
-    def test_run_solver_tree(self, solver_name, poissonGLM_model_instantiation_pytree):
+    def test_run_solver_tree(self, solver, poissonGLM_model_instantiation_pytree):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation_pytree
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(
             jax.tree_util.tree_map(jnp.zeros_like, true_params.coef),
             true_params.intercept,
@@ -707,9 +777,9 @@ class TestRidge:
         runner = model._instantiate_solver(model._compute_loss, params).solver_run
         runner(params, X.data, y)
 
-    @pytest.mark.parametrize("solver_name", ["GradientDescent", "SVRG"])
+    @pytest.mark.parametrize("solver", ["GradientDescent", "SVRG"])
     @pytest.mark.requires_x64
-    def test_solver_output_match(self, poissonGLM_model_instantiation, solver_name):
+    def test_solver_output_match(self, poissonGLM_model_instantiation, solver):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
@@ -717,11 +787,11 @@ class TestRidge:
 
         # set model params
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
 
         model_bfgs = copy.deepcopy(model)
-        model_bfgs.solver_name = "BFGS"
+        model_bfgs.solver = "BFGS"
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner_gd = model._instantiate_solver(
@@ -748,7 +818,7 @@ class TestRidge:
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
         model.solver_kwargs = {"tol": 10**-12}
-        model.solver_name = "BFGS"
+        model.solver = "BFGS"
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner_bfgs = model._instantiate_solver(
@@ -778,7 +848,7 @@ class TestRidge:
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
         model.solver_kwargs = {"tol": 10**-12}
         model.regularizer_strength = 0.1
-        model.solver_name = solver_name
+        model.solver = solver_name
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner_bfgs = model._instantiate_solver(
             model._compute_loss, init_params
@@ -797,7 +867,7 @@ class TestRidge:
             raise ValueError("Ridge GLM estimate does not match sklearn!")
 
     @pytest.mark.parametrize(
-        "solver_name",
+        "solver",
         [
             "GradientDescent",
             "BFGS",
@@ -806,10 +876,10 @@ class TestRidge:
             "ProximalGradient",
         ],
     )
-    def test_solver_combination(self, solver_name, poissonGLM_model_instantiation):
+    def test_solver_combination(self, solver, poissonGLM_model_instantiation):
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         model.fit(X, y)
 
 
@@ -817,56 +887,44 @@ class TestLasso:
     cls = nmo.regularizer.Lasso
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
-            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
-            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
             ("ProximalGradient", does_not_raise()),
-            (
-                "AGradientDescent",
-                pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
-                ),
-            ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
-            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name, expectation):
+    def test_init_solver(self, solver, expectation):
         """Test Lasso acceptable solvers."""
         with expectation:
-            nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
+            nmo.glm.GLM(regularizer=self.cls(), solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
-            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
-            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
             ("ProximalGradient", does_not_raise()),
-            (
-                "AGradientDescent",
-                pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
-                ),
-            ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
-            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name, expectation):
+    def test_set_solver_allowed(self, solver, expectation):
         """Test Lasso acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1)
         with expectation:
-            model.set_params(solver_name=solver_name)
+            model.set_params(solver=solver)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("solver_kwargs", [{"tol": 10**-10}, {"tols": 10**-10}])
-    def test_init_solver_kwargs(self, solver_kwargs, solver_name):
+    def test_init_solver_kwargs(self, solver_kwargs, solver):
         """Test LassoSolver acceptable kwargs."""
         regularizer = self.cls()
         raise_exception = "tols" in list(solver_kwargs.keys())
@@ -876,14 +934,14 @@ class TestLasso:
             ):
                 nmo.glm.GLM(
                     regularizer=regularizer,
-                    solver_name=solver_name,
+                    solver=solver,
                     solver_kwargs=solver_kwargs,
                     regularizer_strength=1.0,
                 )
         else:
             nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
                 regularizer_strength=1.0,
             )
@@ -924,27 +982,27 @@ class TestLasso:
         else:
             nmo.utils.assert_is_callable(model._compute_loss, "loss")
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_run_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
 
         model.set_params(regularizer=self.cls(), regularizer_strength=1)
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner = model._instantiate_solver(model._compute_loss, params).solver_run
         runner(params, X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_run_solver_tree(self, solver_name, poissonGLM_model_instantiation_pytree):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_run_solver_tree(self, solver, poissonGLM_model_instantiation_pytree):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation_pytree
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=1)
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(
             jax.tree_util.tree_map(jnp.zeros_like, true_params.coef),
             true_params.intercept,
@@ -952,17 +1010,15 @@ class TestLasso:
         runner = model._instantiate_solver(model._compute_loss, params).solver_run
         runner(params, X.data, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.requires_x64
-    def test_solver_match_statsmodels(
-        self, solver_name, poissonGLM_model_instantiation
-    ):
+    def test_solver_match_statsmodels(self, solver, poissonGLM_model_instantiation):
         """Test that different solvers converge to the same solution."""
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         # set precision to float64 for accurate matching of the results
         model.data_type = jnp.float64
         model.set_params(regularizer=self.cls(), regularizer_strength=1)
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12}
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
@@ -991,16 +1047,16 @@ class TestLasso:
         """Check pytree X can be fit."""
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation_pytree
         model.set_params(regularizer=nmo.regularizer.Lasso(), regularizer_strength=1.0)
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
         model.fit(X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_str", [0.001, 0.01, 0.1, 1, 10])
     @pytest.mark.requires_x64
     def test_lasso_pytree_match(
         self,
         reg_str,
-        solver_name,
+        solver,
         poissonGLM_model_instantiation_pytree,
         poissonGLM_model_instantiation,
     ):
@@ -1014,19 +1070,19 @@ class TestLasso:
         model_array.set_params(
             regularizer=nmo.regularizer.Lasso(), regularizer_strength=reg_str
         )
-        model.solver_name = solver_name
-        model_array.solver_name = solver_name
+        model.solver = solver
+        model_array.solver = solver
         model.fit(X, y)
         model_array.fit(X_array, y)
         assert np.allclose(
             np.hstack(jax.tree_util.tree_leaves(model.coef_)), model_array.coef_
         )
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_solver_combination(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_solver_combination(self, solver, poissonGLM_model_instantiation):
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         model.fit(X, y)
 
 
@@ -1034,56 +1090,44 @@ class TestElasticNet:
     cls = nmo.regularizer.ElasticNet
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
-            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
-            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
             ("ProximalGradient", does_not_raise()),
-            (
-                "AGradientDescent",
-                pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
-                ),
-            ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
-            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name, expectation):
+    def test_init_solver(self, solver, expectation):
         """Test ElasticNet acceptable solvers."""
         with expectation:
-            nmo.glm.GLM(regularizer=self.cls(), solver_name=solver_name)
+            nmo.glm.GLM(regularizer=self.cls(), solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
-            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
-            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
             ("ProximalGradient", does_not_raise()),
-            (
-                "AGradientDescent",
-                pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
-                ),
-            ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
-            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name, expectation):
+    def test_set_solver_allowed(self, solver, expectation):
         """Test ElasticNet acceptable solvers."""
         regularizer = self.cls()
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=(1, 0.5))
         with expectation:
-            model.set_params(solver_name=solver_name)
+            model.set_params(solver=solver)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("solver_kwargs", [{"tol": 10**-10}, {"tols": 10**-10}])
-    def test_init_solver_kwargs(self, solver_kwargs, solver_name):
+    def test_init_solver_kwargs(self, solver_kwargs, solver):
         """Test ElasticNetSolver acceptable kwargs."""
         regularizer = self.cls()
         raise_exception = "tols" in list(solver_kwargs.keys())
@@ -1093,14 +1137,14 @@ class TestElasticNet:
             ):
                 nmo.glm.GLM(
                     regularizer=regularizer,
-                    solver_name=solver_name,
+                    solver=solver,
                     solver_kwargs=solver_kwargs,
                     regularizer_strength=(1.0, 0.5),
                 )
         else:
             nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
                 regularizer_strength=(1.0, 0.5),
             )
@@ -1197,27 +1241,27 @@ class TestElasticNet:
         else:
             nmo.utils.assert_is_callable(model._compute_loss, "loss")
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_run_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
 
         model.set_params(regularizer=self.cls(), regularizer_strength=(1, 0.5))
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner = model._instantiate_solver(model._compute_loss, params).solver_run
         runner(params, X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_run_solver_tree(self, solver_name, poissonGLM_model_instantiation_pytree):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_run_solver_tree(self, solver, poissonGLM_model_instantiation_pytree):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation_pytree
 
         # set regularizer and solver name
         model.set_params(regularizer=self.cls(), regularizer_strength=(1, 0.5))
-        model.solver_name = solver_name
+        model.solver = solver
         params = GLMParams(
             jax.tree_util.tree_map(jnp.zeros_like, true_params.coef),
             true_params.intercept,
@@ -1229,13 +1273,13 @@ class TestElasticNet:
             y,
         )
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_strength", [1.0, 0.5, 0.1])
     @pytest.mark.parametrize("reg_ratio", [1.0, 0.5, 0.2])
     @pytest.mark.requires_x64
     @pytest.mark.filterwarnings("ignore:The fit did not converge:RuntimeWarning")
     def test_solver_match_statsmodels(
-        self, solver_name, reg_strength, reg_ratio, poissonGLM_model_instantiation
+        self, solver, reg_strength, reg_ratio, poissonGLM_model_instantiation
     ):
         """Test that different solvers converge to the same solution."""
         # with jax.disable_jit():
@@ -1245,7 +1289,7 @@ class TestElasticNet:
         model.set_params(
             regularizer=self.cls(), regularizer_strength=(reg_strength, reg_ratio)
         )
-        model.solver_name = solver_name
+        model.solver = solver
         model.solver_kwargs = {"tol": 10**-12, "maxiter": 10000}
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
@@ -1289,7 +1333,7 @@ class TestElasticNet:
         model_PG = nmo.glm.GLM(
             regularizer="ElasticNet",
             regularizer_strength=(1.0, 0.5),
-            solver_name="ProximalGradient",
+            solver="ProximalGradient",
             solver_kwargs=dict(tol=10**-12, maxiter=10000),
         )
         model_PG.fit(X, y)
@@ -1341,16 +1385,16 @@ class TestElasticNet:
         model.set_params(
             regularizer=nmo.regularizer.ElasticNet(), regularizer_strength=1.0
         )
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
         model.fit(X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("reg_str", [0.001, 0.01, 0.1, 1, 10])
     @pytest.mark.requires_x64
     def test_elasticnet_pytree_match(
         self,
         reg_str,
-        solver_name,
+        solver,
         poissonGLM_model_instantiation_pytree,
         poissonGLM_model_instantiation,
     ):
@@ -1364,19 +1408,19 @@ class TestElasticNet:
         model_array.set_params(
             regularizer=nmo.regularizer.ElasticNet(), regularizer_strength=reg_str
         )
-        model.solver_name = solver_name
-        model_array.solver_name = solver_name
+        model.solver = solver
+        model_array.solver = solver
         model.fit(X, y)
         model_array.fit(X_array, y)
         assert np.allclose(
             np.hstack(jax.tree_util.tree_leaves(model.coef_)), model_array.coef_
         )
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_solver_combination(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_solver_combination(self, solver, poissonGLM_model_instantiation):
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         model.set_params(regularizer=self.cls(), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
         model.fit(X, y)
 
 
@@ -1384,7 +1428,7 @@ class TestGroupLasso:
     cls = nmo.regularizer.GroupLasso
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
             ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
             ("BFGS", pytest.raises(ValueError, match="not allowed for")),
@@ -1401,7 +1445,7 @@ class TestGroupLasso:
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_init_solver_name(self, solver_name, expectation):
+    def test_init_solver(self, solver, expectation):
         """Test GroupLasso acceptable solvers."""
         # create a valid mask
         mask = np.zeros((2, 10))
@@ -1409,28 +1453,22 @@ class TestGroupLasso:
         mask[1, 5:] = 1
         mask = jnp.asarray(mask)
         with expectation:
-            nmo.glm.GLM(regularizer=self.cls(mask=mask), solver_name=solver_name)
+            nmo.glm.GLM(regularizer=self.cls(mask=mask), solver=solver)
 
     @pytest.mark.parametrize(
-        "solver_name, expectation",
+        "solver, expectation",
         [
-            ("GradientDescent", pytest.raises(ValueError, match="not allowed for")),
-            ("BFGS", pytest.raises(ValueError, match="not allowed for")),
+            ("GradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            ("BFGS", pytest.raises(ValueError, match="is not allowed")),
             ("ProximalGradient", does_not_raise()),
-            (
-                "AGradientDescent",
-                pytest.raises(
-                    ValueError,
-                    match="The solver: AGradientDescent is not allowed for",
-                ),
-            ),
-            (1, pytest.raises(TypeError, match="solver_name must be a string")),
-            ("SVRG", pytest.raises(ValueError, match="not allowed for")),
+            ("AGradientDescent", pytest.raises(ValueError, match="is not allowed")),
+            (1, pytest.raises(TypeError, match="Type of solver has to be")),
+            ("SVRG", pytest.raises(ValueError, match="is not allowed")),
             ("ProxSVRG", does_not_raise()),
         ],
     )
-    def test_set_solver_name_allowed(self, solver_name, expectation):
-        """Test GroupLassoSolver acceptable solvers."""
+    def test_set_solver_allowed(self, solver, expectation):
+        """Test GroupLasso acceptable solvers."""
         # create a valid mask
         mask = np.zeros((2, 10))
         mask[0, :5] = 1
@@ -1439,11 +1477,11 @@ class TestGroupLasso:
         regularizer = self.cls(mask=mask)
         model = nmo.glm.GLM(regularizer=regularizer, regularizer_strength=1)
         with expectation:
-            model.set_params(solver_name=solver_name)
+            model.set_params(solver=solver)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
     @pytest.mark.parametrize("solver_kwargs", [{"tol": 10**-10}, {"tols": 10**-10}])
-    def test_init_solver_kwargs(self, solver_name, solver_kwargs):
+    def test_init_solver_kwargs(self, solver, solver_kwargs):
         """Test GroupLasso acceptable kwargs."""
         raise_exception = "tols" in list(solver_kwargs.keys())
 
@@ -1461,14 +1499,14 @@ class TestGroupLasso:
             ):
                 nmo.glm.GLM(
                     regularizer=regularizer,
-                    solver_name=solver_name,
+                    solver=solver,
                     solver_kwargs=solver_kwargs,
                     regularizer_strength=1.0,
                 )
         else:
             nmo.glm.GLM(
                 regularizer=regularizer,
-                solver_name=solver_name,
+                solver=solver,
                 solver_kwargs=solver_kwargs,
                 regularizer_strength=1.0,
             )
@@ -1517,8 +1555,8 @@ class TestGroupLasso:
         else:
             nmo.utils.assert_is_callable(model._compute_loss, "loss")
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_run_solver(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_run_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver runs."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
@@ -1530,14 +1568,14 @@ class TestGroupLasso:
         mask = GLMParams(jnp.asarray(mask), None)
 
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         model._instantiate_solver(model._compute_loss, init_params)
         model.solver_run(init_params, X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_init_solver(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_init_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver initialization returns a state."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
@@ -1549,7 +1587,7 @@ class TestGroupLasso:
         mask = GLMParams(jnp.asarray(mask), None)
 
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
 
         model._instantiate_solver(model._compute_loss, true_params)
         state = model.solver_init_state(true_params, X, y)
@@ -1557,8 +1595,8 @@ class TestGroupLasso:
         # specific namespace attributes
         assert isinstance(state, tuple | eqx.Module)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_update_solver(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_update_solver(self, solver, poissonGLM_model_instantiation):
         """Test that the solver initialization returns a state."""
 
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
@@ -1570,7 +1608,7 @@ class TestGroupLasso:
         mask = GLMParams(jnp.asarray(mask), None)
 
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
-        model.solver_name = solver_name
+        model.solver = solver
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         model._instantiate_solver(model._compute_loss, init_params)
@@ -1579,7 +1617,7 @@ class TestGroupLasso:
 
         # ProxSVRG needs the full gradient at the anchor point to be initialized
         # so here just set it to xs, which is not correct, but fine shape-wise
-        if solver_name == "ProxSVRG":
+        if solver == "ProxSVRG":
             state = state._replace(full_grad_at_reference_point=state.reference_point)
 
         params, state, _ = model.solver_update(true_params, state, X, y)
@@ -1734,7 +1772,7 @@ class TestGroupLasso:
         mask = GLMParams(jnp.asarray(mask_array, dtype=jnp.float32), None)
 
         model.set_params(regularizer=self.cls(mask=mask), regularizer_strength=1.0)
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
 
         init_params = GLMParams(true_params.coef * 0.0, true_params.intercept)
         runner = model._instantiate_solver(model._compute_loss, init_params).solver_run
@@ -1876,11 +1914,11 @@ class TestGroupLasso:
 
         # Test with auto-initialized mask (mask=None, initialized during fit)
         model.regularizer = self.cls(mask=None)
-        model.solver_name = "ProximalGradient"
+        model.solver = "ProximalGradient"
         model.fit(X, y)
 
-    @pytest.mark.parametrize("solver_name", ["ProximalGradient", "ProxSVRG"])
-    def test_solver_combination(self, solver_name, poissonGLM_model_instantiation):
+    @pytest.mark.parametrize("solver", ["ProximalGradient", "ProxSVRG"])
+    def test_solver_combination(self, solver, poissonGLM_model_instantiation):
         X, y, model, true_params, firing_rate = poissonGLM_model_instantiation
         mask_array = np.ones((1, X.shape[1])).astype(float)
         mask = GLMParams(jnp.asarray(mask_array), None)
@@ -1890,7 +1928,7 @@ class TestGroupLasso:
                 None if self.cls == nmo.regularizer.UnRegularized else 1.0
             ),
         )
-        model.solver_name = solver_name
+        model.solver = solver
         model.fit(X, y)
 
     @pytest.mark.parametrize(
